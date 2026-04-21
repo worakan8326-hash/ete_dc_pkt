@@ -121,13 +121,47 @@ const CustomerQuickEdit: React.FC<CustomerQuickEditProps> = ({
   };
 
   const calculateNextCv = () => {
-    const numericCvs = customers.map(c => {
-       const val = c.cv || c.CV || '';
-       const numStr = String(val).replace(/\D/g, '');
-       const parsed = parseInt(numStr);
-       return isNaN(parsed) ? 0 : parsed;
-    }).filter(v => v > 0);
-    return (numericCvs.length > 0 ? Math.max(...numericCvs) + 1 : 1001).toString();
+    if (!customers || customers.length === 0) return 'A100001';
+
+    // Parse all CVs into components: prefix and number
+    const parsedCvs = customers.map(c => {
+      const val = String(c.cv || c.CV || '').trim();
+      if (!val) return null;
+      
+      // Matches a prefix (letters) and a numeric part (digits)
+      const match = val.match(/^([a-zA-Z]*)(\d+)$/);
+      if (match) {
+        return {
+          prefix: match[1],
+          num: parseInt(match[2]),
+          originalNumStr: match[2]
+        };
+      }
+      return null;
+    }).filter(p => p !== null);
+
+    if (parsedCvs.length === 0) {
+      // Fallback if no patterns matched
+      return 'A100001';
+    }
+
+    // Attempt to find the highest number within the preferred "A" prefix pattern
+    const aPattern = parsedCvs.filter(p => p!.prefix.toUpperCase() === 'A');
+    
+    // Pick the target pattern to increment: 
+    // Priority 1: Prefix "A" (most common based on user request)
+    // Priority 2: Whatever has the highest numeric value
+    const target = aPattern.length > 0 
+      ? aPattern.sort((a, b) => b!.num - a!.num)[0]
+      : parsedCvs.sort((a, b) => b!.num - a!.num)[0];
+
+    if (!target) return 'A100001';
+
+    const nextNum = target.num + 1;
+    // Maintain the same number of digits (padding with zeros)
+    const nextNumStr = nextNum.toString().padStart(target.originalNumStr.length, '0');
+    
+    return target.prefix + nextNumStr;
   };
 
   if (!isOpen) return null;

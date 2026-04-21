@@ -22,6 +22,7 @@ import { saveCustomer, processBatchTransaction, getNextTxnNo } from '../api';
 import ResultsMapModal from './ResultsMapModal';
 import { ImageLightbox } from './CommonUI';
 import { CustomerSurveyHistory } from './CustomerSurveyHistory';
+import CustomerQuickEdit from './CustomerQuickEdit';
 import { useThaiAddress } from '../hooks/useThaiAddress';
 import { usePossession } from '../hooks/usePossession';
 import { TRANSACTION_STATUSES } from '../constants/logisticsConstants';
@@ -85,6 +86,7 @@ export default function CustomerSurvey({
   const [error, setError] = useState<string | null>(null);
   const [isNearbyMode, setIsNearbyMode] = useState(false);
   const [showResultsMap, setShowResultsMap] = useState(false);
+  const [showQuickEdit, setShowQuickEdit] = useState(false);
 
   // --- Externalized Hooks ---
   const { availableDistricts, availableSubdistricts } = useThaiAddress(
@@ -113,6 +115,10 @@ export default function CustomerSurvey({
     setCustomerDraft({...c});
     setIsReadOnly(true);
     setShowResultsMap(false);
+  }, []);
+
+  const handleAddNewCustomer = useCallback(() => {
+    setShowQuickEdit(true);
   }, []);
 
   // --- Business Logic ---
@@ -193,8 +199,11 @@ export default function CustomerSurvey({
   const handleSaveSurvey = useCallback(async () => {
     if (!selectedCustomer || !customerDraft) return;
     setSaving(true);
+    setError(null);
     try {
       const txnNo = await getNextTxnNo();
+      
+      // 1. Process Survey Transaction
       await processBatchTransaction({
         action: 'survey', 
         items: [{ activity_name: 'งานสำรวจลูกค้า', quantity: 1 }],
@@ -210,12 +219,15 @@ export default function CustomerSurvey({
         lat: newLocation?.lat.toString() || customerDraft.lat?.toString() || '',
         lng: newLocation?.lng.toString() || customerDraft.lng?.toString() || ''
       });
+
+      // 2. Save/Update Customer Info
       await saveCustomer({
         ...customerDraft,
-        lat: newLocation?.lat || customerDraft.lat,
-        lng: newLocation?.lng || customerDraft.lng,
+        lat: newLocation?.lat || customerDraft.lat || 0,
+        lng: newLocation?.lng || customerDraft.lng || 0,
         image_url: photos.length > 0 ? photos[0] : customerDraft.image_url
       });
+
       setSuccess(true);
       onRefresh();
       setTimeout(() => {
@@ -292,15 +304,21 @@ export default function CustomerSurvey({
                 <button onClick={() => handleSearch()} disabled={loading} className="flex-1 h-12 bg-indigo-600 text-white rounded-xl font-black text-[12px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg disabled:opacity-50 transition-all">
                     {loading && !isNearbyMode ? <RefreshCw size={18} className="animate-spin" /> : <Search size={18} />} กดเพื่อค้นหาลูกค้า
                 </button>
-                {isNearbyMode && searchResults.length > 0 && (
-                  <button 
-                    onClick={() => setShowResultsMap(true)} 
-                    className="flex-1 h-12 bg-emerald-600 text-white rounded-xl font-black text-[12px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg transition-all"
-                  >
-                    <MapPin size={18} /> ดูแผนที่ร้านรอบตัว
-                  </button>
-                )}
+                <button 
+                  onClick={handleAddNewCustomer} 
+                  className="flex-1 h-12 bg-emerald-500 text-white rounded-xl font-black text-[12px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95"
+                >
+                   <CheckCircle size={18} /> เพิ่มลูกค้าใหม่
+                </button>
              </div>
+             {isNearbyMode && searchResults.length > 0 && (
+                <button 
+                  onClick={() => setShowResultsMap(true)} 
+                  className="w-full h-12 bg-slate-800 text-white rounded-xl font-black text-[12px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg transition-all"
+                >
+                  <MapPin size={18} /> ดูแผนที่ร้านรอบตัว
+                </button>
+             )}
           </div>
           <div className="space-y-2">
             {searchResults.map(c => (
@@ -517,6 +535,17 @@ export default function CustomerSurvey({
           </motion.div>
         </AnimatePresence>
       )}
+      <CustomerQuickEdit 
+        isOpen={showQuickEdit} 
+        onClose={() => setShowQuickEdit(false)} 
+        customer={null} 
+        onSave={(newC) => {
+          onRefresh();
+          handleSelectCustomer(newC);
+        }}
+        thaiAddressData={thaiAddressData}
+        customers={customers}
+      />
     </div>
   );
 }
