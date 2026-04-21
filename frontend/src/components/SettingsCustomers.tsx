@@ -17,82 +17,46 @@ interface SettingsCustomersProps {
   onAddCustomer: () => void;
   onLoadCustomers: () => void;
   isLoadingCustomers: boolean;
+  items: any[];
 }
 
-/**
- * 📦 CustomerAssetBadge Component
- * Lightweight summary of units in possession
- */
-
-const CustomerAssetBadge: React.FC<{ cv: string, transactions: any[], logisticsJobs: any[] }> = ({ cv, transactions, logisticsJobs }) => {
-  const possession = usePossession(transactions, cv, logisticsJobs);
+const CustomerAssetBadge: React.FC<{ cv: string, transactions: any[], logisticsJobs: any[], masterItems: any[] }> = ({ cv, transactions, logisticsJobs, masterItems }) => {
+  const possession = usePossession(transactions, cv, logisticsJobs, masterItems);
   
   if (!possession || possession.length === 0) return null;
 
-  // Split: ตู้แช่ = individual detail cards, others = grouped
-  const freezers = possession.filter(it => String(it.name || '').includes('ตู้'));
-  const others = possession.filter(it => !String(it.name || '').includes('ตู้'));
-  const othersTotalQty = others.reduce((sum, it) => sum + it.qty, 0);
-
   return (
-    <div className="flex flex-col gap-2.5 mt-3">
-      {/* ❄️ Freezers — each shown individually with full detail */}
-      {freezers.map((item, idx) => {
-        const nameParts = [item.name || 'ตู้แช่'];
-        if (item.detail && item.detail !== '-') nameParts.push(item.detail);
-        const mainLabel = nameParts.join(' ');
-
-        const metaParts: string[] = [];
-        if (item.size && item.size !== '-') metaParts.push(`ขนาด ${item.size}`);
-        if (item.condition && item.condition !== '-') metaParts.push(`สภาพ ${item.condition}`);
-        const metaLabel = metaParts.join(' • ');
+    <div className="flex flex-col gap-2 mt-4 text-left">
+      {possession.map((item, idx) => {
+        const nameStr = item.name || '';
+        const detailStr = (item.detail && item.detail !== '-') ? ` ${item.detail}` : '';
+        const sizeStr = (item.size && item.size !== '-') ? ` ขนาด ${item.size}` : '';
+        const condStr = item.condition ? ` สภาพ ${item.condition}` : '';
 
         return (
-          <div key={`f-${idx}`} className="flex items-center gap-3 bg-sky-50 border border-sky-200/60 px-4 py-3 rounded-2xl shadow-sm">
-             <div className="w-10 h-10 bg-sky-100 rounded-xl flex items-center justify-center shrink-0">
-               <span className="material-symbols-outlined text-[22px] text-sky-500">ac_unit</span>
-             </div>
-             <div className="flex flex-col leading-snug flex-1 min-w-0">
-                <span className="text-[13px] font-black text-sky-800 uppercase tracking-tight">{mainLabel}</span>
-                {metaLabel && (
-                  <span className="text-[11px] font-bold text-sky-500 tracking-wide">{metaLabel}</span>
-                )}
+          <div key={`${idx}`} className="flex items-center justify-between p-4 bg-white border border-slate-100 rounded-xl shadow-sm">
+             <div className="flex flex-col min-w-0 pr-4">
+                <p className="text-[14px] font-black leading-snug">
+                  <span className="text-slate-800">{nameStr}{detailStr}{sizeStr}{condStr}</span>
+                </p>
                 {item.lastDate && (
-                  <span className="text-[10px] font-bold text-sky-400 mt-0.5">
-                    📅 รับเมื่อ {formatThaiDate(item.lastDate)}
-                  </span>
+                   <span className="text-[10px] font-bold text-slate-400 mt-1 flex items-center gap-1">
+                      <RefreshCw size={10} /> รับเมื่อ {formatThaiDate(item.lastDate)}
+                   </span>
                 )}
              </div>
-             <div className="bg-sky-100 px-3 py-1.5 rounded-xl shrink-0">
-                <span className="text-[16px] font-black text-sky-700">×{item.qty}</span>
+             <div className="w-12 h-12 bg-white rounded-2xl border border-slate-100 flex items-center justify-center shrink-0 shadow-sm">
+                <span className="text-[18px] font-black text-slate-800">{item.qty}</span>
              </div>
           </div>
         );
       })}
-
-      {/* 📦 Others — grouped into one compact line */}
-      {othersTotalQty > 0 && (
-        <div className="flex items-center gap-3 bg-slate-50 border border-slate-200/60 px-4 py-2.5 rounded-2xl shadow-sm">
-           <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center shrink-0">
-             <span className="material-symbols-outlined text-[18px] text-slate-400">inventory_2</span>
-           </div>
-           <div className="flex flex-col leading-snug flex-1 min-w-0">
-              <span className="text-[12px] font-black text-slate-600 uppercase tracking-tight">อุปกรณ์เสริมอื่นๆ</span>
-              <span className="text-[10px] font-bold text-slate-400 truncate">
-                {others.map(o => `${o.name}(${o.qty})`).join(', ')}
-              </span>
-           </div>
-           <div className="bg-slate-100 px-3 py-1 rounded-xl shrink-0">
-              <span className="text-[14px] font-black text-slate-500">×{othersTotalQty}</span>
-           </div>
-        </div>
-      )}
     </div>
   );
 };
 
 const SettingsCustomers: React.FC<SettingsCustomersProps> = ({ 
-  customers, transactions = [], logisticsJobs = [], onEditCustomer, onDeleteCustomer, onAddCustomer, onLoadCustomers, isLoadingCustomers 
+  customers, transactions = [], logisticsJobs = [], items = [], onEditCustomer, onDeleteCustomer, onAddCustomer, onLoadCustomers, isLoadingCustomers 
 }) => {
   const [customerSearch, setCustomerSearch] = useState('');
   const [visibleCount, setVisibleCount] = useState(100);
@@ -304,7 +268,7 @@ const SettingsCustomers: React.FC<SettingsCustomersProps> = ({
                            <span className="material-symbols-outlined text-[16px] align-middle mr-2 text-slate-300">location_on</span>
                            {[c.address, c.subdistrict, c.district, c.province].filter(Boolean).join(' ')}
                          </p>
-                         <CustomerAssetBadge cv={c.cv} transactions={transactions} logisticsJobs={logisticsJobs} />
+                         <CustomerAssetBadge cv={c.cv} transactions={transactions} logisticsJobs={logisticsJobs} masterItems={items} />
                       </div>
                    </div>
   

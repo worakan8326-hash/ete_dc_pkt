@@ -95,7 +95,7 @@ export default function CustomerSurvey({
     customerDraft?.district || ''
   );
 
-  const possessionList = usePossession(transactions, selectedCustomer?.cv, logisticsJobs);
+  const possessionList = usePossession(transactions, selectedCustomer?.cv, logisticsJobs, items);
 
   const customerHistory = useMemo(() => {
     if (!selectedCustomer) return [];
@@ -452,14 +452,21 @@ export default function CustomerSurvey({
                <div className="space-y-2">
                   {possessionList.length === 0 ? (
                      <p className="text-center py-6 text-slate-400 font-bold text-xs uppercase tracking-widest bg-slate-50 rounded-3xl">ไม่มีพัสดุครองครอง</p>
-                  ) : possessionList.map((it, idx) => (
-                     <div key={idx} className="flex flex-col p-4 bg-slate-50 border border-slate-100 rounded-3xl text-left">
-                        <div className="flex justify-between items-center">
-                           <span className="text-[13px] font-black text-slate-800">{it.name} {it.detail} {it.size && `ขนาด ${it.size}`} สภาพ {it.condition}</span>
-                           <span className="text-[18px] font-black text-emerald-600 ml-4">{it.qty}</span>
+                  ) : possessionList.map((it, idx) => {
+                     const condStr = it.condition ? ` สภาพ ${it.condition}` : '';
+                     return (
+                        <div key={idx} className="flex flex-col p-4 bg-white border border-slate-100 rounded-3xl text-left shadow-sm">
+                           <div className="flex justify-between items-center">
+                              <p className="text-[13px] font-black leading-snug">
+                                 <span className="text-slate-800">
+                                    {it.name}{it.detail ? ` ${it.detail}` : ''}{it.size ? ` ขนาด ${it.size}` : ''}{condStr}
+                                 </span>
+                              </p>
+                              <span className="text-[18px] font-black text-emerald-600 ml-4">{it.qty}</span>
+                           </div>
                         </div>
-                     </div>
-                  ))}
+                     );
+                  })}
                </div>
             </div>
 

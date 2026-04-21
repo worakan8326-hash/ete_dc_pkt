@@ -361,6 +361,7 @@ export default function Settings({ onRefresh, user, FULL_ADDRESS_LIST, FILTERED_
               customers={customers} 
               transactions={transactions}
               logisticsJobs={logisticsJobs}
+              items={masterItems}
               onAddCustomer={handleAddNewCustomer} 
               onEditCustomer={c => { setEditCustomer({...c}); setShowCustomerForm(true); }} 
               onDeleteCustomer={c => setDeleteConfirm({ show: true, rowIndex: c.rowIndex, itemName: c.name, type: 'customer' })} 
