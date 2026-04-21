@@ -1,0 +1,40 @@
+  const handleExportExcel = () => {
+    try {
+      setLoading(true);
+      // เตรียมข้อมูลสำหรับการ Export
+      const dataToExport = masterItems.map(it => ({
+        'ประเภท': it.ประเภท,
+        'ยี่ห้อหรือรูปแบบ': it['ยี่ห้อหรือรูปแบบ'],
+        'รายการ': it.รายการ,
+        'สภาพ': it.สภาพ,
+        'รายละเอียด': it.รายละเอียด,
+        'ขนาด': it.ขนาด,
+        'จำนวน': it.จำนวน,
+        'RowIndex': it.rowIndex
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Inventory");
+      
+      // ใช้สิทธิ์เขียนไฟล์แบบแมนนวลเพื่อความชัวร์เรื่องนามสกุลไฟล์บน Browser บางรุ่น
+      const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const fileName = `Inventory_Master_${new Date().toISOString().split('T')[0]}.xlsx`;
+      
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      showSuccess('Export Excel สำเร็จ');
+    } catch (err: any) {
+      setError('Export ล้มเหลว: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };

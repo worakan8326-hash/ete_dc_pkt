@@ -1,0 +1,287 @@
+
+/**
+ * 🎯 Logistics Utility Functions
+ * Centralized logic for classification, naming, and aggregation.
+ */
+
+export const SEND_KEYWORDS = ['ISSUE', 'DELIVERY', 'BORROW', 'TRANSFER_OUT', 'แจ้งส่ง', 'ส่ง', 'สำเร็จ', 'เรียบร้อย', 'ส่งแล้ว', 'เบิกออก', 'ดำเนิน', 'ดำเนินการ'];
+export const RETURN_KEYWORDS = ['RETURN', 'RECEIVE', 'แจ้งคืน', 'รับคืน', 'คืน', 'รอตรวจ', 'ชำรุด', 'สูญหาย', 'รอซ่อม', 'ซาก', 'พบว่าเสีย', 'ส่งซ่อม', 'CHECKED', 'รับคืนจากร้าน'];
+export const SKIP_KEYWORDS = ['ยกเลิก', 'กำลังเดินทาง', 'เดินทาง', 'รับงาน', 'ACCEPTED', 'TRANSIT', 'กำลังไปส่ง', 'รอดำเนินการ'];
+
+export type ItemCategory = 'SEND' | 'RETURN' | 'OTHER';
+
+/**
+ * 🚩 Status Groups for Job Classification
+ */
+export const WAITING_STATUSES = ['PENDING', 'รอรับงาน', 'รอส่ง', 'รอเครื่อง', 'รอรับคืน'];
+export const HISTORY_STATUSES = ['เสร็จสิ้น', 'ตรวจสอบแล้ว', 'ปิดงาน', 'คืนของแล้ว', 'คืนแล้ว', 'สำเร็จ', 'SUCCESS', 'CLOSED'];
+export const TRANSIT_KEYWORDS = ['กำลังเดินทาง', 'เดินทาง', 'รับงาน', 'ACCEPTED', 'TRANSIT', 'กำลังไปส่ง', 'รอดำเนินการ'];
+
+/**
+ * Classifies a transaction item into SEND or RETURN category.
+ */
+export const classifyLogisticsItem = (actionType: string, jobStatus?: string): ItemCategory => {
+  const at = String(actionType || '').toUpperCase();
+  const js = String(jobStatus || '').toUpperCase();
+  const isInspected = at.includes('ตรวจสอบแล้ว') || at.includes('อนุมัติ') || at.includes('CHECKED');
+  
+  // Return checked/done always RETURN
+  if (isInspected) return 'RETURN';
+
+  // 🚩 Strict Intent Check (Keywords in Action Type)
+  if (at.includes('แจ้งส่ง') || at.includes('ISSUE') || at.includes('DELIVERY') || at.includes('ส่งแล้ว')) return 'SEND';
+  if (at.includes('แจ้งคืน') || at.includes('RETURN') || at.includes('RECEIVE') || at.includes('รอตรวจ')) return 'RETURN';
+
+  // Specific Keyword Group Check
+  if (RETURN_KEYWORDS.some(k => at.includes(k.toUpperCase()))) return 'RETURN';
+  if (SEND_KEYWORDS.some(k => at.includes(k.toUpperCase()))) return 'SEND';
+  
+  // Contextual fallback ONLY if totally ambiguous (e.g. just "กำลังดำเนินการ")
+  if (at.includes('ดำเนิน') && (js.includes('เสร็จ') || js.includes('สำเร็จ'))) {
+     return 'SEND'; // General assumption for finished jobs
+  }
+
+  return 'OTHER';
+};
+
+/**
+ * Promotes status labels based on the current job stage.
+ * If the job is in the return leg or finished, items should show finalized statuses.
+ */
+export const promoteItemStatus = (category: ItemCategory, originalStatus: string, jobStatus?: string) => {
+   const js = String(jobStatus || '').toUpperCase();
+   const isFinalLeg = (
+      js.includes('คืน') || 
+      js.includes('กลับ') || 
+      js.includes('เสร็จ') || 
+      js.includes('สำเร็จ') || 
+      js.includes('ออฟฟิศ') || 
+      js.includes('ตรวจสอบ') ||
+      js.includes('CHECK')
+   );
+   
+   if (!isFinalLeg) return originalStatus;
+   
+   if (category === 'SEND') return 'ส่งเสร็จแล้ว';
+   
+   if (category === 'RETURN') {
+      // If job has been verified/inspected → items are verified too
+      const isVerified = js.includes('ตรวจสอบแล้ว') || js.includes('VERIFIED') || js.includes('CHECKED');
+      return isVerified ? 'ตรวจสอบแล้ว' : 'รอตรวจสอบ';
+   }
+   
+   return originalStatus;
+};
+
+/**
+ * Formats the item name following the premium specification.
+ * Format: [ประเภท] [ยี่ห้อ] [รายการ] [รายละเอียด] ขนาด [ขนาด] สภาพ [สภาพ]
+ */
+export const formatItemName = (it: any) => {
+  const mainPart = `${it.ประเภท || ''} ${it.ยี่ห้อหรือรูปแบบ || it.brand || ''} ${it.รายการ || it.item_name || ''} ${it.รายละเอียด || it.details || ''}`.replace(/\s+/g, ' ').trim();
+  const metaPart = `${it.ขนาด ? `ขนาด ${it.ขนาด}` : ''} ${it.สภาพ ? `สภาพ ${it.สภาพ}` : ''}`.replace(/\s+/g, ' ').trim();
+  
+  return { 
+    main: mainPart || it.รายการ || 'พัสดุอุปกรณ์', 
+    meta: metaPart || '-' 
+  };
+};
+
+/**
+ * Aggregates job items into logical unique entities with correct quantities.
+ * Handles the Plan -> Action -> Result deduplication.
+ */
+export const aggregateJobItems = (rawItems: any[] = [], jobStatus?: string) => {
+  // 📍 1. Define Intents (Plans) and Results (Actions)
+  const plans = rawItems.filter(it => String(it.action_type || it.action || '').toUpperCase().includes('แจ้ง'));
+  const rawResults = rawItems.filter(it => !String(it.action_type || it.action || '').toUpperCase().includes('แจ้ง') && !SKIP_KEYWORDS.some(k => String(it.action_type || it.action || '').toUpperCase().includes(k.toUpperCase())));
+
+  // 📍 2. Deduplicate Results: The Ultimate Physical Snapshot
+  const uniqueResultsMap: Record<string, any> = {};
+  const sortedRawResults = [...rawResults].sort((a, b) => (a.id || 0) - (b.id || 0));
+
+  sortedRawResults.forEach(res => {
+    const identity = (res.serial_number && String(res.serial_number).trim() !== '') 
+      ? `SN_${res.serial_number}` 
+      : (res.rowIndex ? `ROW_${res.rowIndex}` : `TX_${res.id}`);
+    uniqueResultsMap[identity] = res;
+  });
+  const results = Object.values(uniqueResultsMap);
+
+  // 📍 3. Reconcile: Spread Results over Plans (Quantity Allocation)
+  const resolvedSlots: any[] = [];
+  const consumedPlans = new Set<string>();
+  
+  const planRemainingQty: Record<string, number> = {};
+  plans.forEach(p => {
+    planRemainingQty[p.id] = Number(p.จำนวน || p.quantity || p.qty || 1);
+  });
+
+  const sortedResults = [...results].sort((a, b) => (b.id || 0) - (a.id || 0));
+
+  sortedResults.forEach(res => {
+    let unallocatedResQty = Number(res.จำนวน || res.quantity || res.qty || 1);
+
+    while (unallocatedResQty > 0) {
+      const availablePlans = plans.filter(p => !consumedPlans.has(String(p.id)) && planRemainingQty[p.id] > 0);
+      let match: any = null;
+
+      // Rule A: Strict Row Index
+      if (res.rowIndex && !match) {
+        match = availablePlans.find(p => String(p.rowIndex) === String(res.rowIndex));
+      }
+      
+      // Rule B: Exact Master Item ID
+      if (res.item_id && !match) {
+        match = availablePlans.find(p => String(p.item_id) === String(res.item_id));
+      }
+
+      // Rule C: Category + "ตู้" Keyword
+      if (!match) {
+         const resCat = classifyLogisticsItem(res.action_type || res.action, jobStatus);
+         match = availablePlans.find(p => {
+            const pCat = classifyLogisticsItem(p.action_type || p.action, jobStatus);
+            if (resCat !== pCat) return false;
+            // Freezers without SN can be substituted for any freezer plan of the same category
+            if (String(res.รายการ || '').includes('ตู้') && String(p.รายการ || '').includes('ตู้')) return true;
+            return res.รายการ === p.รายการ;
+         });
+      }
+
+      if (!match) {
+        break; // No more plans to fulfill for this result
+      }
+
+      const planAvailable = planRemainingQty[match.id];
+      const quantityToConsume = Math.min(planAvailable, unallocatedResQty);
+      
+      unallocatedResQty -= quantityToConsume;
+      planRemainingQty[match.id] -= quantityToConsume;
+
+      if (planRemainingQty[match.id] <= 0) {
+        consumedPlans.add(String(match.id));
+      }
+
+      const resCat = classifyLogisticsItem(res.action_type || res.action, jobStatus);
+      resolvedSlots.push({
+        ...match,
+        ...res,
+        action_type: promoteItemStatus(resCat, res.action_type || res.action, jobStatus),
+        จำนวน: quantityToConsume, 
+        originalPlan: match,
+        isReconciled: true
+      });
+    }
+
+    // Any overflow result quantity becomes an orphan item line
+    if (unallocatedResQty > 0) {
+      const resCat = classifyLogisticsItem(res.action_type || res.action, jobStatus);
+      resolvedSlots.push({ 
+        ...res, 
+        action_type: promoteItemStatus(resCat, res.action_type || res.action, jobStatus),
+        จำนวน: unallocatedResQty,
+        isReconciled: false 
+      });
+    }
+  });
+
+  // 📍 4. Add remaining partial/unfulfilled plans
+  plans.forEach(p => {
+    const remain = planRemainingQty[p.id];
+    if (remain > 0) {
+      const pCat = classifyLogisticsItem(p.action_type || p.action, jobStatus);
+      resolvedSlots.push({ 
+        ...p, 
+        action_type: promoteItemStatus(pCat, p.action_type || p.action, jobStatus),
+        จำนวน: remain, 
+        isReconciled: false 
+      });
+    }
+  });
+
+  // 📍 5. Calculate Totals
+  let totalSend = 0;
+  let totalReturn = 0;
+
+  const allAggregated = resolvedSlots.map(slot => {
+    const category = classifyLogisticsItem(slot.action_type || slot.action, jobStatus);
+    const qtyCount = Number(slot.จำนวน || slot.quantity || slot.qty || 1);
+    
+    if (category === 'SEND') totalSend += qtyCount;
+    if (category === 'RETURN') totalReturn += qtyCount;
+
+    return {
+      it: slot,
+      action_type: slot.action_type || slot.action,
+      category,
+      totalQty: qtyCount,
+      // Pass these for legacy UI compatibility
+      plan: slot.isReconciled ? qtyCount : (slot.originalPlan ? qtyCount : 0),
+      action: slot.isReconciled ? qtyCount : (slot.originalPlan ? 0 : qtyCount),
+      detailsList: [slot]
+    };
+  });
+
+  return {
+    totalSend,
+    totalReturn,
+    sendItems: allAggregated.filter(v => v.category === 'SEND'),
+    returnItems: allAggregated.filter(v => v.category === 'RETURN'),
+    allAggregated
+  };
+};
+
+/**
+ * Checks if a job is in the 'Waiting' tab.
+ */
+export const checkIsWaitingJob = (job: any) => {
+  const s = String(job.status || '').toUpperCase();
+  const hasHandedOverItems = job.items?.some((it: any) =>
+    String(it.action_type || '').includes('รอตรวจ') ||
+    String(it.action_type || '').includes('ตรวจสอบ')
+  );
+  if (hasHandedOverItems) return false;
+
+  return WAITING_STATUSES.some(k => s.includes(k.toUpperCase()));
+};
+
+/**
+ * Checks if a job is in the 'Active' tab.
+ */
+export const checkIsActiveJob = (job: any) => {
+  if (checkIsWaitingJob(job)) return false;
+
+  const s = String(job.status || '').toUpperCase();
+  const isDoneStatus = HISTORY_STATUSES.some(k => s.includes(k.toUpperCase())) || s.includes('กำลังเดินทางกลับ') || s.includes('รับคืนจากร้าน');
+
+  const hasHandedOver = job.items?.some((it: any) =>
+    String(it.action_type || it.status || "").toUpperCase().includes('รอตรวจ') ||
+    String(it.action_type || it.status || "").toUpperCase().includes('ตรวจสอบ')
+  );
+
+  if (isDoneStatus || hasHandedOver) return false;
+
+  const hasPendingActions = job.items?.some((it: any) => {
+    const at = String(it.action_type || it.status || "").toUpperCase();
+    return !['รอตรวจ', 'ตรวจสอบ', 'สำเร็จ', 'เรียบร้อย'].some(k => at.includes(k));
+  });
+
+  if (hasPendingActions) return true;
+
+  return TRANSIT_KEYWORDS.some(k => s.includes(k.toUpperCase())) && !isDoneStatus && !hasHandedOver;
+};
+
+/**
+ * Checks if a job is in the 'History' tab.
+ */
+export const checkIsHistoryJob = (job: any) => {
+  const s = String(job.status || '').toUpperCase();
+  const hasHandedOver = job.items?.some((it: any) =>
+    String(it.action_type || it.status || "").toUpperCase().includes('รอตรวจ') ||
+    String(it.action_type || it.status || "").toUpperCase().includes('ตรวจสอบ')
+  );
+
+  const isDone = HISTORY_STATUSES.some(k => s.includes(k.toUpperCase())) || s.includes('กำลังเดินทางกลับ') || s.includes('รับคืนจากร้าน');
+
+  return isDone || hasHandedOver;
+};

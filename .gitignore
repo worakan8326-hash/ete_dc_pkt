@@ -1,0 +1,14 @@
+node_modules
+dist
+.env
+*.xlsx
+.firebase
+.DS_Store
+*.log
+scratch/
+test_output.json
+initial_data.json
+prisma/dev.db
+prisma/dev.db-journal
+frontend/dist
+frontend/.firebase

@@ -1,0 +1,100 @@
+﻿     if (!v || !currentVal || !isValidFormat(v) || !isValidFormat(currentVal)) return false;
+     const newParts = v.split('.').map(Number);
+     const oldParts = currentVal.split('.').map(Number);
+     for (let i = 0; i < 3; i++) {
+        if (newParts[i] > oldParts[i]) return false;
+        if (newParts[i] < oldParts[i]) return true;
+     }
+     return false;
+  };
+
+  const labelClass = "text-[11px] font-black text-secondary/40 uppercase tracking-widest ml-1";
+
+  return (
+    <div className="w-full mx-auto py-4 px-1 md:px-4">
+      {successMsg && <div className="fixed top-4 right-4 bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-bounce"> โ“ {successMsg} </div>}
+      {loading && <div className="fixed inset-0 bg-white/60 backdrop-blur-[4px] z-[100] flex items-center justify-center animate-fade-in"><div className="bg-white/90 p-10 rounded-[2rem] border border-slate-100 flex flex-col items-center gap-6"><svg className="animate-spin h-10 w-10 text-primary" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg></div></div>}
+
+      <div className="flex overflow-x-auto pb-8 mb-4 scrollbar-hide gap-4 sticky top-0 z-20 bg-[#f8f9fc]/95 backdrop-blur-xl px-2 pt-2">
+        {[
+          { id: 'users', label: 'เธเธนเนเนเธเนเธเธฒเธ', icon: 'person', perm: 'set_users' },
+          { id: 'master', label: 'เธเธฑเธชเธ”เธธเธซเธฅเธฑเธ', icon: 'database', perm: 'set_items' },
+          { id: 'notify', label: 'เนเธเนเธเน€เธ•เธทเธญเธ', icon: 'notifications', perm: 'set_notifications' },
+          { id: 'zones', label: 'เน€เธเธ•เธเธฒเธ', icon: 'map', perm: 'set_zones' },
+          { id: 'customers', label: 'เธฅเธนเธเธเนเธฒ', icon: 'groups', perm: 'set_customers' },
+          { id: 'system', label: 'เธฃเธฐเธเธ', icon: 'settings', perm: 'set_system' },
+        ].filter(tab => {
+          if (isAdministrator) return true;
+          const rolePerms = permissions?.[user?.role] || {};
+          return rolePerms[tab.perm as string] === true;
+        }).map((tab) => (
+          <button
+            key={tab.id}
+            onClick={(e) => { 
+                setActiveTab(tab.id as any); 
+                localStorage.setItem('settings_active_tab', tab.id);
+                setShowUserForm(false); setShowItemForm(false); setShowCustomerForm(false); setShowZoneForm(false); 
+                (e.currentTarget as HTMLElement).scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+            }}
+            className={`
+              relative flex-shrink-0 group flex flex-col items-center justify-center min-w-[82px] h-[82px] rounded-[1.8rem] transition-all duration-300
+              ${activeTab === tab.id 
+                ? 'bg-primary text-white border-2 border-primary z-10' 
+                : 'bg-white text-secondary/40 hover:bg-slate-50 border border-slate-100'
+              }
+            `}
+          >
+            <div className={`
+              w-10 h-10 rounded-xl mb-1 flex items-center justify-center transition-all
+              ${activeTab === tab.id ? 'bg-white/20' : 'bg-slate-50 group-hover:bg-primary/5'}
+            `}>
+              <span className={`material-symbols-outlined text-[24px] ${activeTab === tab.id ? 'text-white' : 'text-secondary/20 group-hover:text-primary transition-colors'}`}>
+                {tab.icon}
+              </span>
+            </div>
+            <span className="text-[11px] font-black tracking-tight leading-none uppercase">
+              {tab.label}
+            </span>
+            {activeTab === tab.id && (
+              <div className="absolute -bottom-1 w-1.5 h-1.5 bg-primary rounded-full"></div>
+            )}
+          </button>
+        ))}
+      </div>
+
+      <div className="bg-white rounded-[1.5rem] border border-slate-200 min-h-[500px] overflow-hidden">
+        {error && <div className="m-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 font-bold">{error}</div>}
+        
+        <Suspense fallback={<div className="flex items-center justify-center p-20 opacity-50 font-bold">เธเธณเธฅเธฑเธเนเธซเธฅเธ”...</div>}>
+          {activeTab === 'users' && !showUserForm && (
+            showPermissions ? (
+              <SettingsPermissions 
+                users={users} 
+                onRefresh={onRefresh}
+                onBack={() => setShowPermissions(false)}
+              />
+            ) : (
+              <SettingsUsers 
+                users={users} 
+                onAddUser={() => { setEditUser({ username: '', password: '', name: '', role: 'staff' }); setShowUserForm(true); }} 
+                onEditUser={u => { setEditUser(u); setShowUserForm(true); }} 
+                onDeleteUser={u => setDeleteConfirm({ show: true, rowIndex: u.rowIndex, itemName: u.name, type: 'user' })} 
+                onManagePermissions={() => setShowPermissions(true)}
+              />
+            )
+          )}
+          {activeTab === 'master' && !showItemForm && <SettingsMaster masterItems={masterItems} onRefresh={loadData} onAddItem={() => { setEditItem({ เธเธฃเธฐเน€เธ เธ—: '', 'เธขเธตเนเธซเนเธญเธซเธฃเธทเธญเธฃเธนเธเนเธเธ': '', เธฃเธฒเธขเธเธฒเธฃ: '', เธชเธ เธฒเธ: '', เธฃเธฒเธขเธฅเธฐเน€เธญเธตเธขเธ”: '', เธเธเธฒเธ”: '', เธเธณเธเธงเธ: 0 }); setShowItemForm(true); }} onEditItem={it => { setEditItem(it); setShowItemForm(true); }} onDeleteItem={idx => { const t = masterItems.find(it => it.rowIndex === Number(idx)); setDeleteConfirm({ show: true, rowIndex: idx, itemName: t ? t.เธฃเธฒเธขเธเธฒเธฃ : "เธฃเธฒเธขเธเธฒเธฃเธเธตเน", type: 'item' }); }} showSuccess={showSuccess} setError={setError} setLoading={setLoading} loading={loading} />}
+          {activeTab === 'notify' && (
+            <SettingsNotify 
+              settings={settings} 
+              setSettings={setSettings} 
+              tokens={tokens} 
+              setTokens={setTokens} 
+              channels={channels} 
+              setChannels={setChannels} 
+              loading={loading} 
+              setLoading={setLoading} 
+              showSuccess={showSuccess} 
+              setError={setError}
+              testTelegram={testTelegram}
+              relinkTelegram={relinkTelegram}

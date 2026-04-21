@@ -1,0 +1,200 @@
+﻿                </div>
+              </div>
+
+                {/* 2. Region Filter Section - Concise card */}
+                <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
+                   <div className="p-6 border-b border-slate-50 flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                         <div className="w-10 h-10 bg-indigo-50 text-indigo-500 rounded-xl flex items-center justify-center">
+                            <span className="material-symbols-outlined text-[24px]">map_search</span>
+                         </div>
+                         <div>
+                            <h2 className="text-[15px] font-black text-slate-900 leading-none">เธ•เธฑเธงเธเธฃเธญเธเธเนเธญเธกเธนเธฅเธเธทเนเธเธ—เธตเน</h2>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Data Precision Control</p>
+                         </div>
+                      </div>
+                   </div>
+
+                   <div className="p-6 space-y-6">
+                      {/* Control Switch */}
+                      <div className="flex items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                         <div className="flex items-center gap-3">
+                            <div className={`w-2 h-2 rounded-full ${String(settings.ENABLE_AREA_FILTER) === 'true' ? 'bg-indigo-500' : 'bg-slate-300'}`}></div>
+                            <span className="text-[14px] font-black text-slate-900">เน€เธเธดเธ”เนเธเนเธเธฒเธเธเธฒเธฃเธเธฑเธ”เธเธฃเธญเธเธเธทเนเธเธ—เธตเน</span>
+                         </div>
+                         <button 
+                           onClick={() => setSettings({...settings, ENABLE_AREA_FILTER: String(settings.ENABLE_AREA_FILTER) === 'true' ? 'fal                       {expandedItems['AREA_EDITOR'] && (
+                        <div className="bg-slate-50/50 rounded-3xl border border-slate-100 p-3 space-y-4 animate-fade-in">
+                           {(() => {
+                              const regions: Record<string, { label: string, color: string, provinces: string[] }> = {
+                                 CENTRAL: { label: 'เธ เธฒเธเธเธฅเธฒเธ', color: 'blue', provinces: ['เธเธฃเธธเธเน€เธ—เธเธกเธซเธฒเธเธเธฃ', 'เธเธณเนเธเธเน€เธเธเธฃ', 'เธเธฑเธขเธเธฒเธ—', 'เธเธเธฃเธเธฒเธขเธ', 'เธเธเธฃเธเธเธก', 'เธเธเธฃเธชเธงเธฃเธฃเธเน', 'เธเธเธ—เธเธธเธฃเธต', 'เธเธ—เธธเธกเธเธฒเธเธต', 'เธเธฃเธฐเธเธเธฃเธจเธฃเธตเธญเธขเธธเธเธขเธฒ', 'เธเธดเธเธดเธ•เธฃ', 'เธเธดเธฉเธ“เธธเนเธฅเธ', 'เธฅเธเธเธธเธฃเธต', 'เธชเธกเธธเธ—เธฃเธเธฃเธฒเธเธฒเธฃ', 'เธชเธกเธธเธ—เธฃเธชเธเธเธฃเธฒเธก', 'เธชเธกเธธเธ—เธฃเธชเธฒเธเธฃ', 'เธชเธฃเธฐเธเธธเธฃเธต', 'เธชเธดเธเธซเนเธเธธเธฃเธต', 'เธชเธธเนเธเธ—เธฑเธข', 'เธชเธธเธเธฃเธฃเธ“เธเธธเธฃเธต', 'เธญเนเธฒเธเธ—เธญเธ', 'เธญเธธเธ—เธฑเธขเธเธฒเธเธต', 'เน€เธเธเธฃเธเธนเธฃเธ“เน'] },
+                                 NORTH: { label: 'เธ เธฒเธเน€เธซเธเธทเธญ', color: 'emerald', provinces: ['เน€เธเธตเธขเธเธฃเธฒเธข', 'เน€เธเธตเธขเธเนเธซเธกเน', 'เธเนเธฒเธ', 'เธเธฐเน€เธขเธฒ', 'เนเธเธฃเน', 'เนเธกเนเธฎเนเธญเธเธชเธญเธ', 'เธฅเธณเธเธฒเธ', 'เธฅเธณเธเธนเธ', 'เธญเธธเธ•เธฃเธ”เธดเธ•เธ–เน'] },
+                                 NORTHEAST: { label: 'เธ เธฒเธเธญเธตเธชเธฒเธ', color: 'orange', provinces: ['เธเธฒเธฌเธชเธดเธเธเธธเน', 'เธเธญเธเนเธเนเธ', 'เธเธฑเธขเธ เธนเธกเธด', 'เธเธเธฃเธเธเธก', 'เธเธเธฃเธฃเธฒเธเธชเธตเธกเธฒ', 'เธเธถเธเธเธฒเธฌ', 'เธเธธเธฃเธตเธฃเธฑเธกเธขเน', 'เธกเธซเธฒเธชเธฒเธฃเธเธฒเธก', 'เธกเธธเธเธ”เธฒเธซเธฒเธฃ', 'เธขเนเธชเธเธฃ', 'เธฃเนเธญเธขเน€เธญเนเธ”', 'เน€เธฅเธข', 'เธจเธฃเธตเธชเธฐเน€เธเธฉ', 'เธชเธเธฅเธเธเธฃ', 'เธชเธธเธฃเธดเธเธ—เธฃเน', 'เธซเธเธญเธเธเธฒเธข', 'เธซเธเธญเธเธเธฑเธงเธฅเธณเธ เธน', 'เธญเธณเธเธฒเธเน€เธเธฃเธดเธ', 'เธญเธธเธ”เธฃเธเธฒเธเธต', 'เธญเธธเธเธฅเธฃเธฒเธเธเธฒเธเธต'] },
+                                 EAST: { label: 'เธ เธฒเธเธ•เธฐเธงเธฑเธเธญเธญเธ', color: 'cyan', provinces: ['เธเธฑเธเธ—เธเธธเธฃเธต', 'เธเธฐเน€เธเธดเธเน€เธ—เธฃเธฒ', 'เธเธฅเธเธธเธฃเธต', 'เธ•เธฃเธฒเธ”', 'เธเธฃเธฒเธเธตเธเธเธธเธฃเธต', 'เธฃเธฐเธขเธญเธ', 'เธชเธฃเธฐเนเธเนเธง'] },
+                                 WEST: { label: 'เธ เธฒเธเธ•เธฐเธงเธฑเธเธ•เธ', color: 'indigo', provinces: ['เธเธฒเธเธเธเธเธธเธฃเธต', 'เธ•เธฒเธ', 'เธเธฃเธฐเธเธงเธเธเธตเธฃเธตเธเธฑเธเธเน', 'เน€เธเธเธฃเธเธธเธฃเธต', 'เธฃเธฒเธเธเธธเธฃเธต'] },
+                                 SOUTH: { label: 'เธ เธฒเธเนเธ•เน', color: 'rose', provinces: ['เธเธฃเธฐเธเธตเน', 'เธเธธเธกเธเธฃ', 'เธ•เธฃเธฑเธ', 'เธเธเธฃเธจเธฃเธตเธเธฃเธฃเธกเธฃเธฒเธ', 'เธเธฃเธฒเธเธดเธงเธฒเธช', 'เธเธฑเธ•เธ•เธฒเธเธต', 'เธเธฑเธเธเธฒ', 'เธเธฑเธ—เธฅเธธเธ', 'เธ เธนเน€เธเนเธ•', 'เธฃเธฐเธเธญเธ', 'เธชเธ•เธนเธฅ', 'เธชเธเธเธฅเธฒ', 'เธชเธธเธฃเธฒเธฉเธเธฃเนเธเธฒเธเธต', 'เธขเธฐเธฅเธฒ'] }
+                              };
+
+                              const colorMap: Record<string, string> = {
+                                 blue: 'bg-blue-500', emerald: 'bg-emerald-500', orange: 'bg-orange-500', 
+                                 cyan: 'bg-cyan-500', indigo: 'bg-indigo-500', rose: 'bg-rose-500'
+                              };
+
+                              return Object.entries(regions).map(([regKey, reg]) => {
+                                 const regId = `FILTER_REG_${regKey}`;
+                                 const isRegActive = String(settings[regId]) !== 'false';
+                                 const isRegExpanded = expandedItems[`REG_${regKey}`];
+                                 const activeColor = colorMap[reg.color] || 'bg-slate-400';
+
+                                 return (
+                                    <div key={regKey} className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden transition-all">
+                                       {/* Region Row */}
+                                       <div className="flex items-center justify-between p-4 bg-white hover:bg-slate-50/50 transition-colors">
+                                          <div className="flex items-center gap-3">
+                                             <div className={`w-3 h-3 rounded-full ${activeColor} shadow-sm opacity-80`}></div>
+                                             <span className="text-[13px] font-black text-slate-800">{reg.label}</span>
+                                          </div>
+                                          <div className="flex items-center gap-3">
+                                             <button 
+                                                onClick={() => setSettings({...settings, [regId]: isRegActive ? 'false' : 'true'})}
+                                                className={`w-10 h-6 rounded-full transition-all relative flex items-center px-0.5 ${isRegActive ? activeColor : 'bg-slate-200'}`}
+                                             >
+                                                <div className={`w-5 h-5 bg-white rounded-full shadow-sm transition-all transform ${isRegActive ? 'translate-x-4' : 'translate-x-0'}`}></div>
+                                             </button>
+                                             <button 
+                                                onClick={() => toggleExpand(`REG_${regKey}`)}
+                                                className={`w-8 h-8 flex items-center justify-center rounded-full transition-all ${isRegExpanded ? 'bg-slate-100 text-slate-400 rotate-180' : 'bg-slate-50 text-slate-300'}`}
+                                             >
+                                                <span className="material-symbols-outlined text-[20px]">expand_more</span>
+                                             </button>
+                                          </div>
+                                       </div>
+
+                                       {/* Provinces List (Drill Down) */}
+                                       {isRegExpanded && (
+                                          <div className="px-4 pb-4 space-y-2 border-t border-slate-50 pt-4 animate-slide-up">
+                                             {reg.provinces.map(provName => {
+                                                const provId = `FILTER_PROV_${provName}`;
+                                                const isProvActive = String(settings[provId]) !== 'false';
+                                                const isProvExpanded = expandedItems[`PROV_${provName}`];
+                                                const provinceData = (FULL_ADDRESS_LIST || []).find((p: any) => p.name_th === provName);
+
+                                                return (
+                                                   <div key={provName} className="bg-slate-50/50 rounded-2xl border border-slate-100 overflow-hidden">
+                                                      <div className="flex items-center justify-between px-4 py-3">
+                                                         <span className={`text-[12px] font-bold ${isProvActive ? 'text-slate-700' : 'text-slate-400'}`}>เธ.{provName}</span>
+                                                         <div className="flex items-center gap-2">
+                                                            <button 
+                                                               onClick={() => setSettings({...settings, [provId]: isProvActive ? 'false' : 'true'})}
+                                                               className={`w-9 h-5 rounded-full transition-all relative flex items-center px-0.5 ${isProvActive ? 'bg-indigo-400' : 'bg-slate-200'}`}
+                                                            >
+                                                               <div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-all transform ${isProvActive ? 'translate-x-4' : 'translate-x-0'}`}></div>
+                                                            </button>
+                                                            <button 
+                                                               onClick={() => toggleExpand(`PROV_${provName}`)}
+                                                               className={`w-7 h-7 flex items-center justify-center rounded-lg transition-all ${isProvExpanded ? 'bg-indigo-50 text-indigo-400 rotate-180' : 'text-slate-300'}`}
+                                                            >
+                                                               <span className="material-symbols-outlined text-[18px]">expand_more</span>
+                                                            </button>
+                                                         </div>
+                                                      </div>
+
+                                                      {/* Districts Level (Sub-province) */}
+                                                      {isProvExpanded && provinceData && (
+                                                         <div className="p-3 pt-0 border-t border-slate-100 grid grid-cols-2 gap-1.5 animate-fade-in bg-white/50">
+                                                            {provinceData.amphure?.map((amp: any) => {
+                                                               const ampId = `FILTER_AMPH_${provName}_${amp.name_th}`;
+                                                               const isAmpActive = String(settings[ampId]) !== 'false';
+                                                               return (
+                                                                  <button 
+                                                                     key={amp.name_th}
+                                                                     onClick={() => setSettings({...settings, [ampId]: isAmpActive ? 'false' : 'true'})}
+                                                                     className={`px-3 py-2 rounded-xl text-[10px] font-bold text-left transition-all flex items-center justify-between gap-1 border ${
+                                                                        isAmpActive 
+                                                                           ? 'bg-indigo-50 border-indigo-100 text-indigo-600 shadow-sm' 
+                                                                           : 'bg-white border-slate-100 text-slate-300 opacity-60'
+                                                                     }`}
+                                                                  >
+                                                                     <span className="truncate">{amp.name_th}</span>
+                                                                     <span className="material-symbols-outlined text-[14px]">
+                                                                        {isAmpActive ? 'check_circle' : 'circle'}
+                                                                     </span>
+                                                                  </button>
+                                                               );
+                                                            })}
+                                                         </div>
+                                                      )}
+                                                   </div>
+                                                );
+                                             })}
+                                          </div>
+                                       )}
+                                    </div>
+                                 );
+                              });
+                           })()}
+                        </div>
+                     )}ธเธฑเธเธเน', 'เน€เธเธเธฃเธเธธเธฃเธต', 'เธฃเธฒเธเธเธธเธฃเธต'] },
+                                 SOUTH: { label: 'เธ เธฒเธเนเธ•เน', color: 'rose', provinces: ['เธเธฃเธฐเธเธตเน', 'เธเธธเธกเธเธฃ', 'เธ•เธฃเธฑเธ', 'เธเธเธฃเธจเธฃเธตเธเธฃเธฃเธกเธฃเธฒเธ', 'เธเธฃเธฒเธเธดเธงเธฒเธช', 'เธเธฑเธ•เธ•เธฒเธเธต', 'เธเธฑเธเธเธฒ', 'เธเธฑเธ—เธฅเธธเธ', 'เธ เธนเน€เธเนเธ•', 'เธฃเธฐเธเธญเธ', 'เธชเธ•เธนเธฅ', 'เธชเธเธเธฅเธฒ', 'เธชเธธเธฃเธฒเธฉเธเธฃเนเธเธฒเธเธต', 'เธขเธฐเธฅเธฒ'] }
+                              };
+                              return Object.entries(regions).map(([key, reg]) => {
+                                 const regId = `FILTER_REG_${key}`;
+                                 const isActive = String(settings[regId]) !== 'false';
+                                 
+                                 // Define explicit classes to prevent Tailwind purging
+                                 const colorMap: Record<string, string> = {
+                                    blue: 'bg-blue-500',
+                                    emerald: 'bg-emerald-500',
+                                    orange: 'bg-orange-500',
+                                    cyan: 'bg-cyan-500',
+                                    indigo: 'bg-indigo-500',
+                                    rose: 'bg-rose-500'
+                                 };
+                                 const activeColorClass = colorMap[reg.color] || 'bg-slate-400';
+
+                                 return (
+                                    <div key={key} className="flex items-center justify-between bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm">
+                                       <div className="flex items-center gap-3">
+                                          <div className={`w-3 h-3 rounded-full ${activeColorClass} shadow-sm opacity-80`}></div>
+                                          <span className="text-[13px] font-black text-slate-800">{reg.label}</span>
+                                       </div>
+                                       <button 
+                                          onClick={() => setSettings({...settings, [regId]: isActive ? 'false' : 'true'})}
+                                          className={`w-10 h-6 rounded-full transition-all relative flex items-center px-0.5 ${isActive ? activeColorClass : 'bg-slate-200'}`}
+                                       >
+                                          <div className={`w-5 h-5 bg-white rounded-full shadow-sm transition-all transform ${isActive ? 'translate-x-4' : 'translate-x-0'}`}></div>
+                                       </button>
+                                    </div>
+                                 );
+                              });
+                           })()}
+                        </div>
+                      )}
+
+                      <button 
+                        onClick={async () => {
+                           setLoading(true);
+                           try { await saveSettings(settings); showSuccess('เธเธฑเธเธ—เธถเธเธชเธณเน€เธฃเนเธ'); await loadData(); if(onRefresh) onRefresh(); } catch(e:any) { alert(e.message); } finally { setLoading(false); }
+                        }}
+                        className="w-full h-14 bg-indigo-600 text-white rounded-2xl font-black text-[14px] shadow-xl shadow-indigo-600/10 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                      >
+                         <span className="material-symbols-outlined">save</span> เธเธฑเธเธ—เธถเธเธเธฒเธฃเธเธฑเธ”เธเธฃเธญเธ
+                      </button>
+                   </div>
+                </div>
+
+                {/* 3. OTA Version Section */}
+                <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
+                   <div className="p-6 border-b border-slate-50 flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                         <div className="w-10 h-10 bg-blue-50 text-blue-500 rounded-xl flex items-center justify-center">
+                            <span className="material-symbols-outlined text-[24px]">system_update_alt</span>
+                         </div>
+                         <div>
+                            <h2 className="text-[15px] font-black text-slate-900 leading-none">เธเธฑเธ”เธเธฒเธฃเน€เธงเธญเธฃเนเธเธฑเธเนเธญเธ (OTA)</h2>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Version Control Dashboard</p>
+                         </div>
+                      </div>
+                      <div className="bg-blue-50 text-blue-600 px-3 py-1 rounded-full text-[12px] font-black tracking-widest">
+                         v{settings.APP_VERSION || '1.0.0'}
+                      </div>

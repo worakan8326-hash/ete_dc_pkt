@@ -1,0 +1,20 @@
+﻿import React, { useState, useEffect, useMemo, lazy, Suspense, useCallback } from 'react';
+import { 
+  getUsers, saveUser, deleteUser, 
+  getSettings, saveSettings,
+  getItems, saveMasterItem, deleteMasterItem,
+  clearTransactions,
+  getZones, saveZone,
+  getCustomers, getNextCustomerCv,
+  testTelegram, relinkTelegram,
+  updateApiUrl, resetApiUrl, API_URL
+} from '../api';
+import type { MaterialItem, Zone, Customer } from '../types';
+import ConfirmationModal from './ConfirmationModal';
+
+
+// Lazy load modular components for performance
+const SettingsUsers = lazy(() => import('./SettingsUsers'));
+const SettingsMaster = lazy(() => import('./SettingsMaster'));
+const SettingsNotify = lazy(() => import('./SettingsNotify'));
+const SettingsCustomers = lazy(() => import('./SettingsCustomers'));

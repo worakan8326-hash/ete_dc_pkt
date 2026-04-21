@@ -1,0 +1,1060 @@
+import { Router, Request, Response } from 'express';
+import prisma from '../lib/prisma';
+import { format } from 'date-fns';
+import { Notifier } from '../lib/notifier';
+import { getDistance } from '../lib/location';
+
+const router = Router();
+
+// ========== TRANSACTIONS (Jobs & Details) ==========
+
+// GET /api/transactions
+router.get('/', async (_req: Request, res: Response) => {
+  try {
+    const txns = await prisma.transaction.findMany({
+      include: {
+        item: true,
+        job: { include: { customer: true } },
+        operator: true,
+      },
+      orderBy: { created_at: 'desc' },
+      take: 500, // Limit for performance
+    });
+
+    const mapped = txns.map(t => {
+      // Reconstruct CV or name
+      const cv = t.job?.customer?.cv ?? '';
+
+      return {
+        id: t.id.toString(), // Send ID as backup string
+        เลขที่รายการ: t.job_id ?? `TXN-${t.id}`,
+        "วัน-เวลา": t.created_at.toISOString(),
+        ผู้ทำรายการ: t.operator?.name ?? t.delivery_by ?? 'Unknown',
+        สถานะ: t.action_type,
+        ประเภท: t.item.category,
+        "ยี่ห้อ/รูปแบบ": t.item.brand ?? '',
+        รายการ: t.item.item_name ?? '',
+        สภาพ: t.item.condition ?? '',
+        รายละเอียด: t.item.details ?? '',
+        ขนาด: t.item.size ?? '',
+        จำนวน: t.quantity,
+        CV: cv || t.job?.customer_cv || '',
+        เขตการทำงาน: t.zone_name ?? '',
+        จัดส่งโดย: t.delivery_by || t.job?.delivery_by || 'N/A',
+        ผู้แจ้ง: t.job?.notifier || t.operator?.name || '',
+        วันที่แจ้ง: t.job?.notification_date?.toISOString() || '',
+        กำหนดส่ง: t.job?.created_at.toISOString() || '',
+        เวลานัดหมาย: t.job?.appointment_date?.toISOString() || '',
+        "หมายเหตุแจ้งงาน": t.job?.note || '',
+        "หมายเหตุเพิ่มเติม": t.note || '',
+        หมายเหตุ: t.job?.note || t.note || t.return_reason || '',
+        "สาเหตุการคืน": t.return_reason ?? '',
+        "สภาพตู้": t.cabinet_status ?? '',
+        "เหตุผลการยกเลิก": t.cancel_reason ?? '',
+        "ยกเลิกโดย": t.action_type === 'ยกเลิก' ? (t.operator?.name ?? 'Unknown') : '',
+        // 🚀 New Hardening Fields
+        item_id: t.item_id,
+        job_id: t.job_id || '',
+        serial_number: t.serial_number || '',
+        distance_warning: t.distance_warning || '',
+        lat: t.lat,
+        lng: t.lng,
+        "รูปภาพประกอบ": t.image_url || '',
+      };
+    });
+
+    return res.json(mapped);
+  } catch (err: any) {
+    return res.json({ status: 'error', message: err.message });
+  }
+});
+
+// GET /api/transactions/jobRequests (ใบแจ้งงาน)
+router.get('/jobRequests', async (req: Request, res: Response) => {
+  const { cv } = req.query;
+  try {
+    const jobs = await prisma.job.findMany({
+      where: {
+        ...(cv ? { customer_cv: String(cv) } : {}),
+      },
+      include: {
+        customer: true,
+        transactions: { include: { item: true } },
+        operator: true
+      },
+      orderBy: { created_at: 'desc' },
+      take: 100
+    });
+
+    const mapped = jobs.map(j => ({
+      jobId: j.job_id,
+      cv: j.customer_cv,
+      customerName: j.customer?.name ?? '',
+      type: j.job_type,
+      status: j.status,
+      note: j.note,
+      operator: j.operator?.name ?? 'SYSTEM',
+      createdAt: j.created_at.toISOString(),
+      appointmentDate: j.appointment_date,
+      returnReason: j.transactions.find(t => t.return_reason)?.return_reason || '',
+      items: j.transactions.filter(t => t.item).map(t => ({
+        ประเภท: t.item?.category || 'ไม่ระบุ',
+        ยี่ห้อหรือรูปแบบ: t.item?.brand ?? '',
+        รายการ: t.item?.item_name ?? '',
+        ขนาด: t.item?.size ?? '',
+        สภาพ: t.item?.condition ?? '',
+        จำนวน: t.quantity,
+        rowIndex: t.item?.id,
+        action_type: t.action_type,
+        return_reason: t.return_reason || '',
+        cabinet_status: t.cabinet_status || '',
+        serial_number: t.serial_number || '',
+        serialNumber: t.serial_number || ''
+      }))
+    }));
+
+    return res.json(mapped);
+  } catch (err: any) {
+    return res.json({ status: 'error', message: err.message });
+  }
+});
+
+// GET /api/logistics/jobs (สำหรับพนักงานขนส่งโดยเฉพาะ)
+router.get('/logistics/jobs', async (req: Request, res: Response) => {
+  try {
+    const jobs = await prisma.job.findMany({
+      where: {
+        status: {
+          notIn: ['ยกเลิก', 'ยกเลิกคงคลังแล้ว']
+        }
+      },
+      include: {
+        customer: true,
+        transactions: { include: { item: true } },
+        operator: true,
+        warehouse: true
+      },
+      orderBy: { created_at: 'desc' },
+      take: 200
+    });
+
+    const mapped = jobs.map(j => ({
+      jobId: j.job_id,
+      cv: j.customer_cv,
+      customerName: j.customer?.name ?? '',
+      type: j.job_type,
+      status: j.status,
+      note: j.note,
+      operator: j.operator?.name ?? 'SYSTEM',
+      createdAt: j.created_at.toISOString(),
+      appointmentDate: j.appointment_date,
+      warehouse: j.warehouse?.name || 'Phuket',
+      warehouseId: j.warehouse_id,
+      items: j.transactions.map(t => ({
+        id: t.id,
+        รายการ: t.item?.item_name || t.item?.category || 'พัสดุ',
+        ขนาด: t.item?.size || '',
+        จำนวน: t.quantity,
+        action_type: t.action_type,
+        rowIndex: t.item_id,
+        serialNumber: t.serial_number || '',
+        cabinet_status: t.cabinet_status || ''
+      }))
+    }));
+
+    return res.json(mapped);
+  } catch (err: any) {
+    return res.json({ status: 'error', message: err.message });
+  }
+});
+
+
+// POST /api/transactions/cancel (ยกเลิกรายการทั้งหมดในใบงาน)
+router.post('/cancel', async (req: Request, res: Response) => {
+  const { txnNo, reason, operator } = req.body;
+  if (!txnNo) return res.json({ status: 'error', message: 'Missing Transaction No (job_id)' });
+
+  try {
+    const user = await prisma.user.findFirst({ where: { name: operator } }) || await prisma.user.findFirst();
+
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. หาข้อมูล Job และ Transactions ทั้งหมดในใบงานนั้น
+      const job = await tx.job.findUnique({
+        where: { job_id: txnNo },
+        include: {
+          transactions: { include: { item: true } },
+          customer: true
+        }
+      });
+
+      if (!job) throw new Error(`ไม่พบเลขที่รายการ "${txnNo}"`);
+      if (job.status === 'ยกเลิก' || job.status.includes('ยกเลิก')) throw new Error('รายการนี้ถูกยกเลิกไปแล้ว');
+
+      // 2. ไล่ Revert สต็อกของทุกรายการใน Job นี้ (เฉพาะที่ยังไม่ยกเลิก)
+      for (const txn of job.transactions) {
+        if (txn.cancel_reason) continue;
+
+        let stockChange = 0;
+        if (txn.action_type === 'รับเข้า' || txn.action_type === 'รับคืน') {
+          stockChange = -txn.quantity;
+        } else if (txn.action_type === 'เบิกออก') {
+          stockChange = txn.quantity;
+        }
+
+        if (stockChange !== 0) {
+          await tx.masterItem.update({
+            where: { id: txn.item_id },
+            data: { stock_qty: { increment: stockChange } }
+          });
+        }
+
+        // อัปเดต Transaction รายตัว
+        await tx.transaction.update({
+          where: { id: txn.id },
+          data: {
+            cancel_reason: reason || 'ยกเลิกโดยผู้ใช้',
+            action_type: 'ยกเลิก'
+          }
+        });
+      }
+
+      // 3. อัปเดตหัว Job
+      await tx.job.update({
+        where: { job_id: txnNo },
+        data: { status: 'ยกเลิกคงคลังแล้ว' }
+      });
+
+      // 4. บันทึก Audit Log
+      await tx.auditLog.create({
+        data: {
+          user_id: user?.id,
+          action: `CANCEL_JOB: ${txnNo} (Reason: ${reason})`,
+        }
+      });
+
+      return job;
+    });
+
+    // Notify
+    Notifier.notify({
+      type: 'VOID',
+      txnNo: txnNo,
+      operator: operator || 'System',
+      customer: result.customer?.name,
+      cv: result.customer_cv || undefined,
+      items: result.transactions.map(t => ({ name: t.item.item_name || 'Item', quantity: t.quantity })),
+      note: reason
+    });
+
+    return res.json({ status: 'success', message: 'ยกเลิกรายการสำเร็จ' });
+  } catch (err: any) {
+    console.error("Cancel Error:", err);
+    return res.json({ status: 'error', message: err.message });
+  }
+});
+
+// POST /api/transactions/processBatch
+router.post('/processBatch', async (req: Request, res: Response) => {
+  const {
+    subAction, action, status, items, cv, jobId, txnNo, operator,
+    note, workZone, returnReason, cabinetCondition, photos,
+    deliveryBy, notifier, notificationDate,
+    lat, lng, warehouseId
+  } = req.body;
+
+  try {
+    console.log("===== processBatch Called =====");
+    console.log(JSON.stringify(req.body.items, null, 2));
+    const user = await prisma.user.findFirst({ where: { name: operator } }) || await prisma.user.findFirst();
+    if (!user) throw new Error("Operator user not found in DB");
+
+    const customer = cv ? await prisma.customer.findUnique({ where: { cv } }) : null;
+
+    // Geofencing Logic (Standard Hardening)
+    let distanceWarning: string | null = null;
+    let geofenceEnforcement = "WARN"; // Default to Warning only
+
+    const geofenceSetting = await prisma.systemSetting.findUnique({ where: { key: 'GEOFENCE_ENFORCEMENT' } });
+    if (geofenceSetting) geofenceEnforcement = geofenceSetting.value;
+
+    if (customer && lat && lng && customer.latitude && customer.longitude) {
+      const dist = getDistance(Number(lat), Number(lng), customer.latitude, customer.longitude);
+      if (dist > 500) {
+        const warning = `⚠️ ห่างจากจุดร้านค้า ${(dist / 1000).toFixed(2)} กม.`;
+        if (geofenceEnforcement === 'BLOCK') {
+          throw new Error(`ไม่อนุญาตให้ทำรายการนอกพื้นที่ร้านค้า (${warning}) กรุณาตรวจสอบพิกัด GPS ของท่าน`);
+        }
+        distanceWarning = warning;
+      }
+    }
+
+    const finalJobId = jobId || txnNo || `JOB-${Date.now()}`;
+
+    await prisma.$transaction(async (tx) => {
+      const jobRecord = await tx.job.upsert({
+        where: { job_id: finalJobId },
+        update: {
+          status: status,
+          delivery_by: deliveryBy || undefined,
+          notifier: notifier || undefined,
+          notification_date: notificationDate ? new Date(notificationDate) : undefined,
+          warehouse_id: warehouseId ? Number(warehouseId) : undefined
+        },
+        create: {
+          job_id: finalJobId,
+          customer_cv: cv === 'ADMIN_REVIEW' ? null : (cv || null),
+          job_type: String(subAction || action || "RETURN").toUpperCase(),
+          operator_id: user.id,
+          status: status,
+          note: note || null,
+          delivery_by: deliveryBy || null,
+          notifier: notifier || null,
+          notification_date: notificationDate ? new Date(notificationDate) : null,
+          warehouse_id: warehouseId ? Number(warehouseId) : 1 // Default to 1 if new job
+        }
+      });
+
+      const resolvedWarehouseId = Number(warehouseId || jobRecord.warehouse_id || 1);
+
+      for (const reqItem of items) {
+        const qty = Number(reqItem.quantity || 1);
+        let itemStatus = reqItem.status || status || 'ปกติ';
+
+        const effectiveAction = (subAction || action || '').toLowerCase();
+        const isStatusOnly = effectiveAction === 'status_only' || effectiveAction === 'status_update';
+
+        // 🚨 ULTIMATE OVERRIDE: Any item being returned or received back MUST be "waiting for inspection"
+        // This handles cases where job_type might be delayed or misidentified.
+        if (effectiveAction === 'return' || effectiveAction === 'receive') {
+          itemStatus = 'รอตรวจสอบ';
+        }
+
+        console.log(`[DEBUG] Final Action Decision: ${itemStatus} (Original: ${reqItem.status})`);
+
+        console.log(`[DEBUG] Processing Item: JobID=${jobRecord.job_id}, JobType=${jobRecord.job_type}, Action=${action}, EffectiveAction=${(subAction || action || '').toLowerCase()}, ItemStatus=${itemStatus}`);
+
+        const sn = reqItem.serialNumber || null; // Serial Number from frontend
+        const masterItemId = Number(reqItem.item?.rowIndex || reqItem.item?.id || reqItem.rowIndex || reqItem.id);
+        if (isNaN(masterItemId)) throw new Error(`ข้อมูลพัสดุไม่ถูกต้อง (Invalid Item ID: ${masterItemId})`);
+
+        // --- NEW TRANSIT LOGIC ---
+        // 📥 INCREMENTS
+        const isNormalReturn = ['รับเข้า', 'ปกติ', 'เพิ่มสต๊อก', 'รอตรวจ', 'ปกติ(รอตรวจ)'].includes(itemStatus);
+        const isRepairStatus = ['รอซ่อม', 'ตู้เสีย', 'เสีย', 'ส่งซ่อม'].includes(itemStatus);
+        const isScrapStatus = ['ซาก', 'ชำรุดหนัก/ซาก', 'จำหน่ายซาก', 'รอจำหน่าย', 'ชำรุด', 'ชำรุดหนัก'].includes(itemStatus);
+        const isLostStatus = ['สูญหาย', 'หาย', 'ยืนยันสูญหาย'].includes(itemStatus);
+        const isQuarantineStatus = ['รอตรวจ', 'quarantine', 'returned_to_base', 'ถึงออฟฟิศแล้ว', 'รับคืนแล้ว', 'สำเร็จ', 'ปกติ(รอตรวจ)'].some(s => itemStatus.includes(s));
+        const isTransitStatus = ['กำลังเดินทาง', 'In Transit', 'ทาง', 'ไปส่ง', 'เบิก', 'รับจากร้าน'].some(s => itemStatus.includes(s));
+
+        // Logic check
+        const globalStatus = status || '';
+
+        // 1. Issuing from Warehouse to Driver (Stock -> Transit)
+        const isIssuingToDriver = effectiveAction === 'issue' && (isTransitStatus || globalStatus.includes('เดินทาง')) && !itemStatus.includes('เสร็จ') && !itemStatus.includes('เรียบร้อย');
+        // 2. Fulfilling Delivery (Transit -> Out)
+        const isFulfillingDelivery = effectiveAction === 'issue' && (itemStatus.includes('เสร็จ') || itemStatus.includes('เรียบร้อย') || globalStatus.includes('เสร็จ'));
+
+        // 🚀 PRIORITIZE RETURNING TO BASE (Transit -> Office/Quarantine)
+        // If it's a return and it mentions "office", "inspect", or "success", it must be arriving at base
+        const isReturningToBase = (effectiveAction === 'return' || effectiveAction === 'receive') && (
+          globalStatus.includes('ออฟฟิศ') ||
+          globalStatus.includes('คืนแล้ว') ||
+          globalStatus.includes('ตรวจ') ||
+          globalStatus.includes('ปิดงาน') ||
+          globalStatus.includes('เสร็จสิ้น') ||
+          globalStatus.includes('สำเร็จ') ||
+          globalStatus.includes('รับเข้า')
+        );
+
+        // 3. Picking up from Customer (Customer -> Transit)
+        const isPickingUpToTransit = !isReturningToBase && effectiveAction === 'return' && (globalStatus.includes('ร้าน') || globalStatus.includes('รับคืน'));
+
+
+
+        // Determine changes
+        let stockChange = 0;
+        let repairChange = 0;
+        let scrapChange = 0;
+        let lostChange = 0;
+        let quarantineChange = 0;
+        let transitChange = 0;
+
+        if (!isStatusOnly) {
+          if (effectiveAction === 'return' || (jobRecord?.job_type === 'RETURN' && !isStatusOnly)) {
+            // 🚨 FORCE QUARANTINE: Any return action must enter inspection pool
+            transitChange = isReturningToBase ? -qty : 0;
+            quarantineChange = qty;
+            stockChange = 0; repairChange = 0; scrapChange = 0; lostChange = 0;
+          } else if (isIssuingToDriver) {
+            stockChange = -qty;
+            transitChange = qty;
+          } else if (isFulfillingDelivery) {
+            transitChange = -qty;
+            // No stock increase because it's leaving the system
+          } else if (isPickingUpToTransit) {
+            transitChange = qty;
+          } else {
+            // Fallback for direct movements (un-jobbed transactions)
+            const shouldIncStock = subAction === 'receive' && isNormalReturn;
+            const shouldIncRepair = subAction === 'receive' && isRepairStatus;
+            const shouldIncScrap = subAction === 'receive' && isScrapStatus;
+            const shouldIncLost = subAction === 'receive' && isLostStatus;
+            const shouldIncQuarantine = subAction === 'receive' && isQuarantineStatus;
+
+            const shouldDecStock = subAction === 'issue' && (isNormalReturn || !isRepairStatus && !isScrapStatus && !isLostStatus && !isQuarantineStatus);
+            const shouldDecRepair = subAction === 'issue' && isRepairStatus;
+            const shouldDecScrap = subAction === 'issue' && isScrapStatus;
+            const shouldDecLost = subAction === 'issue' && isLostStatus;
+            const shouldDecQuarantine = subAction === 'issue' && isQuarantineStatus;
+
+            stockChange = shouldIncStock ? qty : (shouldDecStock ? -qty : 0);
+            repairChange = shouldIncRepair ? qty : (shouldDecRepair ? -qty : 0);
+            scrapChange = shouldIncScrap ? qty : (shouldDecScrap ? -qty : 0);
+            lostChange = shouldIncLost ? qty : (shouldDecLost ? -qty : 0);
+            quarantineChange = shouldIncQuarantine ? qty : (shouldDecQuarantine ? -qty : 0);
+          }
+        }
+
+        // 🔄 Special Case: Bucket Transfers for Admin Review
+        if (cv === 'ADMIN_REVIEW' || cv === 'QUARANTINE_REVIEW' || subAction === 'review') {
+          if (subAction === 'receive' || action === 'receive') {
+            // Admin is moving item FROM a temporary state (Quarantine/Repair) to a final state (Stock/Scrap/Repair)
+            // 1. Identify where it's COMES FROM
+            // Most Admin Review items come from Quarantine. So we decrement Quarantine by default.
+            // UNLESS the item was already in Repair (e.g., 'Repair Done' action)
+            const isComingFromRepair = itemStatus.includes('ซ่อมเสร็จ') || status?.includes('ซ่อมเสร็จ');
+
+            if (isComingFromRepair) {
+              repairChange = -qty;
+              stockChange = qty; // Finished repair goes back to usable stock
+            } else {
+              // Default case: Moving from Quarantine pool
+              quarantineChange = -qty;
+
+              if (isNormalReturn || itemStatus.includes('ปกติ')) {
+                stockChange = qty;
+              } else if (isRepairStatus) {
+                repairChange = qty;
+              } else if (isScrapStatus) {
+                scrapChange = qty;
+              } else if (isLostStatus) {
+                lostChange = qty;
+              } else {
+                // Fallback: if status is unclear, return to stock for safety
+                stockChange = qty;
+              }
+            }
+          }
+        }
+
+        if (stockChange !== 0 || repairChange !== 0 || scrapChange !== 0 || lostChange !== 0 || quarantineChange !== 0) {
+          // 1. First find current stock to verify
+          const itemInDB = await tx.masterItem.findUnique({
+            where: { id: masterItemId },
+            select: {
+              stock_qty: true, repair_qty: true, scrap_qty: true, lost_qty: true,
+              quarantine_qty: true, transit_qty: true, item_name: true,
+              category: true, brand: true, size: true
+            }
+          });
+
+          if (!itemInDB) throw new Error(`ไม่พบพัสดุรหัส ${masterItemId} ในระบบ`);
+
+          // 🚀 CHECK SPECIFIC WAREHOUSE STOCK
+          const whStock = await tx.warehouseStock.findUnique({
+            where: {
+              item_id_warehouse_id: {
+                item_id: masterItemId,
+                warehouse_id: resolvedWarehouseId
+              }
+            }
+          });
+
+          const currentWhStock = whStock?.stock_qty || 0;
+          const currentWhTransit = whStock?.transit_qty || 0;
+
+          if (stockChange < 0 && currentWhStock < qty) {
+            const displayName = itemInDB.item_name || [itemInDB.category, itemInDB.brand, itemInDB.size].filter(Boolean).join(' ') || `รหัสพัสดุ ${masterItemId}`;
+            const whName = await tx.warehouse.findUnique({ where: { id: resolvedWarehouseId } }).then(w => w?.name || 'รหัส ' + resolvedWarehouseId);
+            throw new Error(`สต๊อกคลังพัสดุ "${whName}" ไม่พอสำหรับรายการ "${displayName}" (เหลือ ${currentWhStock} แต่ต้องการเบิก ${qty})`);
+          }
+
+          // 🚨 Relax Transit check for Returns
+          // If we are returning to base, we don't strictly care if it was 'officially' on the truck
+          // but we will floor the decrement at the current transit amount to avoid negative transit.
+          if (transitChange < 0 && isReturningToBase) {
+            transitChange = Math.max(-currentWhTransit, transitChange);
+          } else if (transitChange < 0 && currentWhTransit < qty) {
+            const displayName = itemInDB.item_name || [itemInDB.category, itemInDB.brand, itemInDB.size].filter(Boolean).join(' ') || `รหัสพัสดุ ${masterItemId}`;
+            throw new Error(`สต๊อก 'ระหว่างส่ง' ในคลังที่เลือกไม่พอกำหรับรายการ "${displayName}" (เหลือ ${currentWhTransit} แต่ต้องการตัดส่งมอบ ${qty})`);
+          }
+
+          // 2. Perform Atomic Update on MasterItem (Global Cache)
+          await tx.masterItem.update({
+            where: { id: masterItemId },
+            data: {
+              stock_qty: { increment: stockChange },
+              repair_qty: { increment: repairChange },
+              scrap_qty: { increment: scrapChange },
+              lost_qty: { increment: lostChange },
+              quarantine_qty: { increment: quarantineChange },
+              transit_qty: { increment: transitChange }
+            }
+          });
+
+          // 3. Perform Atomic Update on WarehouseStock (Local Location)
+          await tx.warehouseStock.upsert({
+            where: {
+              item_id_warehouse_id: {
+                item_id: masterItemId,
+                warehouse_id: resolvedWarehouseId
+              }
+            },
+            update: {
+              stock_qty: { increment: stockChange },
+              repair_qty: { increment: repairChange },
+              scrap_qty: { increment: scrapChange },
+              lost_qty: { increment: lostChange },
+              quarantine_qty: { increment: quarantineChange },
+              transit_qty: { increment: transitChange }
+            },
+            create: {
+              item_id: masterItemId,
+              warehouse_id: resolvedWarehouseId,
+              stock_qty: stockChange > 0 ? stockChange : 0,
+              repair_qty: repairChange > 0 ? repairChange : 0,
+              scrap_qty: scrapChange > 0 ? scrapChange : 0,
+              lost_qty: lostChange > 0 ? lostChange : 0,
+              quarantine_qty: quarantineChange > 0 ? quarantineChange : 0,
+              transit_qty: transitChange > 0 ? transitChange : 0
+            }
+          });
+        }
+
+
+        // 📝 Determine the label to save in DB Action Type
+        // If it's forced to quarantine, the official action is "Waiting for Inspection"
+        let dbActionType = itemStatus;
+        if (quarantineChange > 0 || (jobRecord?.job_type === 'RETURN' && (effectiveAction === 'return' || effectiveAction === 'receive'))) {
+          dbActionType = 'รอตรวจสอบ';
+        }
+
+        await tx.transaction.create({
+          data: {
+            job_id: jobRecord.job_id,
+            item_id: masterItemId,
+            operator_id: user.id,
+            action_type: dbActionType,
+            quantity: qty,
+            zone_name: workZone === 'ADMIN_OFFICE' ? null : (workZone || null),
+            delivery_by: deliveryBy || null,
+            return_reason: reqItem.returnReason || returnReason || null,
+            cabinet_status: reqItem.cabinetCondition || reqItem.status || cabinetCondition || null,
+            image_url: photos && photos.length > 0 ? photos.join('\n') : null,
+            serial_number: sn,
+            lat: lat ? Number(lat) : null,
+            lng: lng ? Number(lng) : null,
+            distance_warning: distanceWarning,
+            note: reqItem.note || note || null
+          }
+        });
+      }
+
+      // 3. Final Job Status Calculation (For RETURN jobs)
+      // ข้ามทั้งหมดถ้าเป็น status_only (เช่น กดรับงาน) เพราะเราต้องการแค่อัปเดต status ตรงๆ
+      const isStatusOnly = subAction === 'status_only' || subAction === 'status_update';
+      if (jobRecord.job_type === 'RETURN' && !isStatusOnly) {
+        const allTxns = await tx.transaction.findMany({ where: { job_id: finalJobId } });
+
+        const totalRequested = allTxns
+          .filter(t => t.action_type === 'แจ้งคืน')
+          .reduce((sum, t) => sum + t.quantity, 0);
+
+        const totalProcessed = allTxns
+          .filter(t => ['รอตรวจ', 'รับคืน', 'สูญหาย', 'ชำรุดหนัก', 'ชำรุดหนัก/ซาก'].includes(t.action_type))
+          .reduce((sum, t) => sum + t.quantity, 0);
+
+        const hasLoss = allTxns.some(t => ['สูญหาย', 'ชำรุดหนัก', 'ชำรุดหนัก/ซาก'].includes(t.action_type));
+
+        let finalStatus = status;
+        if (totalProcessed === 0) {
+          // ไม่ override ถ้าเป็นสถานะที่ Driver กำลังดำเนินการอยู่แล้ว
+          const isInProgress = (status || '').toLowerCase().includes('transit') ||
+            (status || '').includes('เดินทาง') ||
+            (status || '').includes('ร้าน') ||
+            (status || '').toUpperCase().includes('ACCEPTED') ||
+            (status || '').includes('รับงาน') ||
+            (status || '').includes('เบิก') ||
+            (status || '').includes('กำลังไปส่ง');
+
+          if (!isInProgress) {
+            finalStatus = 'รอรับคืน';
+          }
+        } else if (totalProcessed < totalRequested) {
+          finalStatus = 'คืนบางส่วน';
+        } else {
+          finalStatus = hasLoss ? 'ปิดงาน (มีพัสดุสูญหาย/ซาก)' : 'คืนของแล้ว';
+        }
+
+        await tx.job.update({
+          where: { job_id: finalJobId },
+          data: { status: finalStatus }
+        });
+      }
+    }, { maxWait: 10000, timeout: 20000 });
+
+    // Notify
+    Notifier.notify({
+      type: String(subAction || action || "RETURN").toUpperCase() as any,
+      txnNo: finalJobId,
+      operator,
+      customer: customer?.name,
+      cv,
+      items: items.map((i: any) => ({ name: `${i.item.รายการ} ${i.item.ขนาด}`, quantity: i.quantity })),
+      note,
+      photos
+    });
+
+    return res.json({ status: 'success', message: 'ทำรายการสำเร็จ', jobId: finalJobId });
+  } catch (err: any) {
+    console.error("Batch Transaction Error:", err);
+    return res.json({ status: 'error', message: err.message });
+  }
+});
+
+// POST /api/transactions/jobRequest (แจ้งงานใหม่)
+router.post('/jobRequest', async (req: Request, res: Response) => {
+  const { cv, deliveryItems, returnItems, operator, note, returnReason, notifier, notificationDate, appointmentDate, warehouseId, photos } = req.body;
+
+  try {
+    // 1. หา User (เน้นหาจากชื่อ ถ้าไม่มีให้เอาคนแรกสุด)
+    let user = await prisma.user.findFirst({ where: { name: { contains: operator || '', mode: 'insensitive' } } });
+    if (!user) user = await prisma.user.findFirst();
+    if (!user) throw new Error("ไม่พบข้อมูลพนักงานในระบบ กรุณาตรวจสอบการตั้งค่าผู้ใช้งาน");
+
+    const customer = cv ? await prisma.customer.findUnique({ where: { cv } }) : null;
+
+    const datePrefix = format(new Date(), 'yyyyMMdd');
+    const timestamp = Date.now().toString().slice(-4);
+    const jobId = `JOB-${datePrefix}-${timestamp}`;
+
+    const jobType = deliveryItems && deliveryItems.length > 0 ? 'DELIVERY' : 'RETURN';
+
+    await prisma.$transaction(async (tx) => {
+      // 1. สร้าง Job
+      await tx.job.create({
+        data: {
+          job_id: jobId,
+          customer_cv: cv || null,
+          job_type: jobType,
+          operator_id: user!.id,
+          status: jobType === 'RETURN' ? 'รอรับคืน' : 'PENDING',
+          note: note || null,
+          notifier: notifier || null,
+          notification_date: notificationDate ? new Date(notificationDate) : null,
+          appointment_date: appointmentDate ? new Date(appointmentDate) : null,
+          warehouse_id: warehouseId ? Number(warehouseId) : 1
+        }
+      });
+
+      // 2. เตรียมรายการพัสดุทั้งหมด
+      const allReqItems = [
+        ...(deliveryItems || []).map((i: any) => ({ ...i, _type: 'DELIVERY' })),
+        ...(returnItems || []).map((i: any) => ({ ...i, _type: 'RETURN' }))
+      ];
+
+      // --- DIAGNOSTIC LOG ---
+      console.log(`[jobRequest] Incoming items for ${jobId}:`, {
+        deliveryCount: (deliveryItems || []).length,
+        returnCount: (returnItems || []).length,
+        jobType
+      });
+
+      let savedCount = 0;
+      for (const it of allReqItems) {
+        // Extract item ID with priority: item.id > item.rowIndex > rowIndex > it.id
+        const rawId = it.item?.id || it.item?.rowIndex || it.rowIndex || it.item_id || it.id;
+        const itemId = Number(rawId);
+
+        if (!rawId || isNaN(itemId)) {
+          console.warn(`[jobRequest] Skipping item due to invalid ID:`, { rawId, itemId, item: it.item });
+          continue;
+        }
+
+        await tx.transaction.create({
+          data: {
+            job_id: jobId,
+            item_id: itemId,
+            operator_id: user!.id,
+            action_type: it._type === 'DELIVERY' ? 'แจ้งส่ง' : 'แจ้งคืน',
+            quantity: Number(it.quantity || 1),
+            serial_number: it.serialNumber || null,
+            // returnReasons is an array from frontend; returnReason is top-level fallback
+            return_reason: it._type === 'RETURN'
+              ? (it.returnReasons?.[0] || it.returnReason || returnReason || null)
+              : null,
+            cabinet_status: it._type === 'RETURN' ? (it.status || it.cabinet_status || it.cabinetCondition || null) : null,
+            image_url: photos && photos.length > 0 ? photos.join('\n') : null,
+            note: it._type === 'RETURN' && it.status && it.status !== 'ปกติ' ? `[RIDER CLAIM: ${it.status}]` : null
+          }
+        });
+        savedCount++;
+
+        // 🔥 Save subItems (Accessories/Stickers) as flat transactions so they aren't lost
+        if (it.subItems && Array.isArray(it.subItems)) {
+          for (const sub of it.subItems) {
+            const subRawId = sub.item?.id || sub.item?.rowIndex || sub.rowIndex || sub.item_id || sub.id;
+            const subItemId = Number(subRawId);
+            if (!subRawId || isNaN(subItemId)) continue;
+
+            await tx.transaction.create({
+              data: {
+                job_id: jobId,
+                item_id: subItemId,
+                operator_id: user!.id,
+                action_type: it._type === 'DELIVERY' ? 'แจ้งส่ง' : 'แจ้งคืน',
+                quantity: Number(sub.quantity || 1),
+                image_url: photos && photos.length > 0 ? photos.join('\n') : null,
+                return_reason: it._type === 'RETURN' ? (sub.returnReason || it.returnReason || returnReason || 'แจ้งงานขอเก็บคืน') : null
+              }
+            });
+            savedCount++;
+          }
+        }
+      }
+
+      if (savedCount === 0 && allReqItems.length > 0) {
+        throw new Error("ไม่สามารถบันทึกรายการพัสดุได้ (ตรวจสอบ ID สินค้าไม่พบ) กรุณาลองใหม่อีกครั้งครับ");
+      }
+    });
+
+    console.log(`[jobRequest] Successfully saved ${jobId} with transactions.`);
+
+    // Notify separately
+    const allItems = [
+      ...(deliveryItems || []).map((i: any) => ({ name: `[แจ้งส่ง] ${i.item?.รายการ || 'พัสดุ'}`, quantity: i.quantity })),
+      ...(returnItems || []).map((i: any) => ({ name: `[แจ้งคืน] ${i.item?.รายการ || 'พัสดุ'}`, quantity: i.quantity }))
+    ];
+
+    Notifier.notify({
+      type: 'JOB_REQUEST',
+      txnNo: jobId,
+      operator: operator || user.name,
+      customer: customer?.name,
+      cv,
+      items: allItems,
+      note,
+      photos
+    });
+
+    return res.json({ status: 'success', jobId });
+  } catch (err: any) {
+    console.error("JobRequest Error:", err);
+    return res.json({ status: 'error', message: err.message });
+  }
+});
+
+// POST /api/transactions/confirm-repair (Admin Review Actions)
+router.post('/confirm-repair', async (req: Request, res: Response) => {
+  const { action, itemId, serialNumber, originalTxnId, originalTxnIds, operatorName, note, quantity } = req.body;
+  const qty = Number(quantity || 1);
+
+  // Support both single and multiple IDs
+  const txnIds: number[] = Array.isArray(originalTxnIds) 
+    ? originalTxnIds.map(id => Number(id))
+    : (originalTxnId ? [Number(originalTxnId)] : []);
+
+  try {
+    const user = await prisma.user.findFirst({ where: { name: operatorName } }) || await prisma.user.findFirst();
+    if (!user) throw new Error("ไม่พบข้อมูลผู้ดำเนินการในระบบ");
+
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Find Reference Transaction (use first ID from list) to inherit metadata
+      const refTxnId = txnIds[0];
+      const originalTxn = refTxnId ? await tx.transaction.findUnique({
+        where: { id: refTxnId },
+        include: { job: true }
+      }) : null;
+
+      const warehouseId = Number(req.body.warehouseId || originalTxn?.warehouse_id || 1);
+
+      // 2. Find Master Item
+      const item = await tx.masterItem.findUnique({ where: { id: Number(itemId) } });
+      if (!item) throw new Error("ไม่พบข้อมูลพัสดุ");
+
+      let targetItem = item;
+      
+      // 🚀 HARDENING: If marked as Normal or Repair Done, it MUST go to "สต๊อก" (Used Stock)
+      // Any items coming back are considered USED, not "ใหม่" (New)
+      if (action === 'quarantine_approve' || action === 'repair_done') {
+        if (item.condition !== 'สต๊อก') {
+          const found = await tx.masterItem.findFirst({
+            where: {
+              category: item.category,
+              brand: item.brand,
+              item_name: item.item_name,
+              size: item.size,
+              condition: 'สต๊อก'
+            }
+          });
+
+          if (found) {
+            targetItem = found;
+          } else {
+            // Create new "สต๊อก" condition item if not exists
+            targetItem = await tx.masterItem.create({
+              data: {
+                category: item.category,
+                brand: item.brand,
+                item_name: item.item_name,
+                size: item.size,
+                condition: 'สต๊อก',
+                details: item.details
+              }
+            });
+          }
+        }
+      }
+
+      let repairChange = 0;
+      let stockChange = 0;
+      let scrapChange = 0;
+      let lostChange = 0;
+      let quarantineChange = 0;
+      let statusLabel = '';
+
+      if (action === 'repair_done') {
+        repairChange = -qty;
+        stockChange = qty;
+        statusLabel = 'ตรวจสอบแล้ว: ซ่อมเสร็จ (Available) (out)';
+      } else if (action === 'to_scrap') {
+        repairChange = -qty;
+        scrapChange = qty;
+        statusLabel = 'ตรวจสอบแล้ว: จำหน่ายซาก (รอจำหน่าย)';
+      } else if (action === 'scrap_sold') {
+        scrapChange = -qty;
+        statusLabel = 'ตรวจสอบแล้ว: อนุมัติจำหน่ายซากเรียบร้อย (out)';
+      } else if (action === 'confirm_loss') {
+        lostChange = -qty;
+        statusLabel = 'ตรวจสอบแล้ว: ยืนยันสูญหาย (out)';
+      } else if (action === 'quarantine_approve') {
+        quarantineChange = -qty;
+        stockChange = qty;
+        statusLabel = 'ตรวจสอบแล้ว: ปกติ (Available) (out)';
+      } else if (action === 'quarantine_to_repair') {
+        quarantineChange = -qty;
+        repairChange = qty;
+        statusLabel = 'ตรวจสอบแล้ว: พบว่าเสีย (รอซ่อม)';
+      } else if (action === 'quarantine_to_scrap') {
+        quarantineChange = -qty;
+        scrapChange = qty;
+        statusLabel = 'ตรวจสอบแล้ว: พบว่าเป็นซาก';
+      } else if (action === 'quarantine_to_lost') {
+        quarantineChange = -qty;
+        lostChange = qty;
+        statusLabel = 'ตรวจสอบแล้ว: พบว่าสูญหาย';
+      }
+
+      // 3. Update Master Item Buckets
+      // Decrement source (Quarantine, Repair, Scrap, Lost - OUTGOING)
+      await tx.masterItem.update({
+        where: { id: item.id },
+        data: {
+          repair_qty: { increment: repairChange < 0 ? repairChange : 0 },
+          scrap_qty: { increment: (action === 'scrap_sold') ? -qty : 0 },
+          lost_qty: { increment: (action === 'confirm_loss') ? -qty : 0 },
+          quarantine_qty: { increment: quarantineChange < 0 ? quarantineChange : 0 }
+        }
+      });
+
+      // Increment target (Stock, Repair, Scrap, Lost - INCOMING)
+      // Note: action 'quarantine_approve' and 'repair_done' target the 'targetItem'
+      await tx.masterItem.update({
+        where: { id: targetItem.id },
+        data: {
+          stock_qty: { increment: stockChange > 0 ? stockChange : 0 },
+          repair_qty: { increment: repairChange > 0 ? repairChange : 0 },
+          scrap_qty: { increment: (action === 'quarantine_to_scrap' || action === 'to_scrap') ? qty : 0 },
+          lost_qty: { increment: (action === 'quarantine_to_lost') ? qty : 0 }
+        }
+      });
+
+      // 4. Update Warehouse Stock (Use UPSERT)
+      // Decrement Source Warehouse
+      await tx.warehouseStock.upsert({
+         where: { item_id_warehouse_id: { item_id: item.id, warehouse_id: warehouseId } },
+         update: {
+            repair_qty: { increment: repairChange < 0 ? repairChange : 0 },
+            quarantine_qty: { increment: quarantineChange < 0 ? quarantineChange : 0 },
+            scrap_qty: { increment: (action === 'scrap_sold') ? -qty : 0 },
+            lost_qty: { increment: (action === 'confirm_loss') ? -qty : 0 }
+         },
+         create: {
+            item_id: item.id,
+            warehouse_id: warehouseId,
+            stock_qty: 0,
+            repair_qty: 0,
+            quarantine_qty: 0,
+            scrap_qty: 0,
+            lost_qty: 0
+         }
+      });
+
+      // Increment Target Warehouse
+      await tx.warehouseStock.upsert({
+        where: { item_id_warehouse_id: { item_id: targetItem.id, warehouse_id: warehouseId } },
+        update: {
+          stock_qty: { increment: stockChange > 0 ? stockChange : 0 },
+          repair_qty: { increment: repairChange > 0 ? repairChange : 0 },
+          scrap_qty: { increment: (action === 'quarantine_to_scrap' || action === 'to_scrap') ? qty : 0 },
+          lost_qty: { increment: (action === 'quarantine_to_lost') ? qty : 0 }
+        },
+        create: {
+          item_id: targetItem.id,
+          warehouse_id: warehouseId,
+          stock_qty: stockChange > 0 ? stockChange : 0,
+          repair_qty: repairChange > 0 ? repairChange : 0,
+          scrap_qty: (action === 'quarantine_to_scrap' || action === 'to_scrap') ? qty : 0,
+          lost_qty: (action === 'quarantine_to_lost') ? qty : 0,
+          quarantine_qty: 0
+        }
+      });
+
+
+      // 4. Use Original Job ID (Group items in the same manifest)
+      const targetJobId = originalTxn?.job_id || `REV-${Date.now()}`;
+
+      // 5. Create Transaction Record linked to ORIGINAL JOB
+      const newTxn = await tx.transaction.create({
+        data: {
+          job_id: targetJobId,
+          item_id: item.id,
+          operator_id: user.id,
+          action_type: statusLabel,
+          cabinet_status: statusLabel,
+          quantity: qty,
+          serial_number: serialNumber || null,
+          return_reason: note || (action === 'to_scrap' ? 'ย้ายจากรอซ่อมไปรอจำหน่ายซาก' : 'อนุมัติโดยแอดมิน')
+        }
+      });
+
+      // 5.5 Update ALL Original Transactions (Mark as Inspected) using bulk update
+      if (txnIds.length > 0) {
+        await tx.transaction.updateMany({
+          where: { id: { in: txnIds } },
+          data: {
+            action_type: `ตรวจสอบแล้ว (${statusLabel})`,
+            note: `[Admin Check: ${note || statusLabel}]`
+          }
+        });
+      }
+
+      // 6. Reconcile Original Job Status
+      if (originalTxn?.job_id) {
+        const allJobTxns = await tx.transaction.findMany({
+          where: { job_id: originalTxn.job_id }
+        });
+
+        const hasUninspected = allJobTxns.some(t =>
+          t.action_type === 'รอรับคืน' ||
+          t.action_type.includes('รอตรวจ') ||
+          t.action_type.includes('คลังกักกัน')
+        );
+
+        if (!hasUninspected) {
+          await tx.job.update({
+            where: { job_id: originalTxn.job_id },
+            data: { status: 'เสร็จสิ้น (ตรวจสอบแล้ว)' }
+          });
+        } else {
+          // Stay in progress if some items are still pending admin review
+          await tx.job.update({
+            where: { job_id: originalTxn.job_id },
+            data: { status: 'ดำเนินการ (อยู่ระหว่างตรวจสอบ)' }
+          });
+        }
+      }
+
+      return { targetJobId, newTxn };
+    });
+
+    return res.json({
+      status: 'success',
+      message: 'ดำเนินการสำเร็จ',
+      jobId: result.targetJobId
+    });
+
+  } catch (err: any) {
+    console.error("Confirm Repair Error:", err);
+    return res.json({ status: 'error', message: err.message });
+  }
+});
+
+// GET /api/transactions/next-txn-no
+router.get('/next-txn-no', async (_req: Request, res: Response) => {
+  try {
+    const datePrefix = format(new Date(), 'yyMMdd');
+    const lastJob = await prisma.job.findFirst({
+      where: { job_id: { startsWith: `TXN-${datePrefix}` } },
+      orderBy: { job_id: 'desc' }
+    });
+
+    let nextNum = 1;
+    if (lastJob) {
+      const parts = lastJob.job_id.split('-');
+      if (parts.length === 3) {
+        const currentNum = parseInt(parts[2], 10);
+        if (!isNaN(currentNum)) nextNum = currentNum + 1;
+      }
+    }
+
+    const nextTxnNo = `TXN-${datePrefix}-${String(nextNum).padStart(4, '0')}`;
+    return res.json({ txnNo: nextTxnNo });
+  } catch (error) {
+    return res.json({ txnNo: `TXN-${format(new Date(), 'yyMMdd')}-0001` });
+  }
+});
+
+// 🧹 Wipe all logistics queues (Quarantine, Repair, Scrap, Lost)
+router.post('/wipe-queues', async (_req, res) => {
+  try {
+    await prisma.$transaction([
+      // 1. Reset all buckets in WarehouseStock back to 0
+      prisma.warehouseStock.updateMany({
+        data: {
+          quarantine_qty: 0,
+          repair_qty: 0,
+          scrap_qty: 0,
+          lost_qty: 0,
+          transit_qty: 0
+        }
+      }),
+      // 2. We don't delete transactions for audit trail, but they will be filtered out 
+      // because the buckets are now 0 and items are marked (out) conceptually.
+      // Actually, let's mark the relevant transactions as (out/cleared) to be sure
+      prisma.transaction.updateMany({
+        where: {
+          OR: [
+            { action_type: { contains: 'รอตรวจ' } },
+            { action_type: { contains: 'รับคืน' } },
+            { action_type: { contains: 'ซ่อม' } },
+            { action_type: { contains: 'ซาก' } },
+            { action_type: { contains: 'หาย' } }
+          ],
+          NOT: { action_type: { contains: '(out)' } }
+        },
+        data: {
+          action_type: { set: 'ยกเลิกรายการ (ล้างกระดาน) (out)' }
+        }
+      })
+    ]);
+
+    return res.json({ status: 'success', message: 'ล้างคิวงานทั้งหมดเรียบร้อยแล้ว' });
+  } catch (err: any) {
+    console.error(err);
+    return res.json({ status: 'error', message: err.message });
+  }
+});
+
+export default router;
+

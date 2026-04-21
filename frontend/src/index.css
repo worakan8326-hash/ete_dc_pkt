@@ -1,0 +1,100 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  font-size: 80%;
+  /* Scales everything down to 80% size */
+}
+
+@layer base {
+  body {
+    @apply bg-white text-[#1e293b] min-h-screen overflow-x-hidden;
+    font-family: 'Inter', 'IBM Plex Sans Thai', 'Prompt', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.5;
+  }
+}
+
+@layer components {
+  .clean-panel {
+    @apply bg-white border border-slate-100 rounded-2xl;
+  }
+
+  .flat-panel {
+    @apply bg-white border border-slate-100 rounded-3xl shadow-sm;
+  }
+
+  .flat-border {
+    @apply border border-slate-200/60;
+  }
+
+  .minimal-input {
+    @apply bg-slate-50 border border-transparent rounded-2xl px-6 py-4 font-bold text-slate-800 focus:bg-white focus:border-sky-500/20 focus:ring-4 focus:ring-sky-500/5 transition-all outline-none;
+  }
+
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    vertical-align: middle;
+  }
+}
+
+/* Minimal Scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #e2e8f0;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #cbd5e1;
+}
+
+/* Hide number input spinners */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type=number] {
+  appearance: textfield;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scaleUp {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out forwards;
+}
+
+.animate-scale-up {
+  animation: scaleUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
