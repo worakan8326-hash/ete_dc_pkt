@@ -49,7 +49,7 @@ app.get('/api/initialData', authenticateToken, async (_req, res) => {
         const [items, transactions, customers, zones, settingsList, permissionsList, warehouses] = await Promise.all([
           prisma.masterItem.findMany({ include: { warehouse_stocks: true } }),
           prisma.transaction.findMany({ include: { item: true, job: { include: { customer: true } }, operator: true }, orderBy: { created_at: 'desc' }, take: 500 }),
-          prisma.customer.findMany(),
+          prisma.customer.findMany({ include: { inventory: { include: { item: true } } } }),
           prisma.zone.findMany(),
           prisma.systemSetting.findMany(),
           prisma.rolePermission.findMany(),
@@ -151,7 +151,17 @@ app.get('/api/initialData', authenticateToken, async (_req, res) => {
              zipcode: c.zipcode ?? '', 
              lat: String(c.latitude ?? ''), 
              lng: String(c.longitude ?? ''),
-             image_url: c.image_url ?? ''
+             image_url: c.image_url ?? '',
+             inventory: (c.inventory || []).map((inv: any) => ({
+                id: inv.id,
+                itemId: inv.item_id,
+                name: inv.item?.item_name || inv.item?.category || 'พัสดุ',
+                brand: inv.item?.brand || '',
+                size: inv.item?.size || '',
+                detail: inv.item?.details || '',
+                qty: inv.quantity,
+                lastUpdate: inv.last_updated
+             }))
         }));
 
         return res.json({

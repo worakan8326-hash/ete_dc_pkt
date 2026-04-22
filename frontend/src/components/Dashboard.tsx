@@ -11,10 +11,11 @@ interface DashboardProps {
   warehouses?: any[];
   onRefresh?: () => void;
   loading?: boolean;
+  onNavigate?: (tabId: string) => void;
 }
 
 
-const Dashboard: React.FC<DashboardProps> = ({ items, warehouses = [], onRefresh, loading }) => {
+const Dashboard: React.FC<DashboardProps> = ({ items, warehouses = [], onRefresh, loading, onNavigate }) => {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [qtyLimit, setQtyLimit] = useState('');
@@ -271,6 +272,18 @@ const Dashboard: React.FC<DashboardProps> = ({ items, warehouses = [], onRefresh
              >
                 <span className="material-symbols-outlined text-[16px]">restart_alt</span>
              </button>
+
+             {onNavigate && (
+               <button 
+                  onClick={() => onNavigate('transfer')}
+                  className="bg-sky-500 flex items-center justify-center gap-1.5 px-3 h-[28px] rounded-full text-white shadow-lg shadow-sky-500/20 active:scale-95 transition-all"
+                  title="ย้ายพัสดุระหว่างคลัง"
+               >
+                  <span className="material-symbols-outlined text-[14px]">swap_horiz</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest whitespace-nowrap">ย้ายพัสดุ</span>
+               </button>
+             )}
+
            <div className="bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100 h-[28px] flex items-center">
               <span className="text-[11px] font-black text-indigo-600 uppercase tracking-widest">{filteredItems.length} รายการ</span>
            </div>

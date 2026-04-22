@@ -1,4 +1,5 @@
-import * as xlsx from 'xlsx';
+import xlsx from 'xlsx';
+const { readFile, utils } = xlsx;
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -6,12 +7,12 @@ const filePath = 'C:\\Users\\Rocket Star\\Desktop\\ete_dc_pkt\\Data_ete_pk_dc_im
 
 async function main() {
   console.log('🔄 กำลังอ่านไฟล์ Excel...');
-  const workbook = xlsx.readFile(filePath);
+  const workbook = readFile(filePath);
 
   // 1. Settings
   const settingsSheet = workbook.Sheets['Settings'];
   if (settingsSheet) {
-    const data: any[] = xlsx.utils.sheet_to_json(settingsSheet, { header: 1 });
+    const data: any[] = utils.sheet_to_json(settingsSheet, { header: 1 });
     let count = 0;
     for (let i = 1; i < data.length; i++) {
       const row = data[i];
@@ -30,7 +31,7 @@ async function main() {
   // 2. Roles/Permissions
   const permSheet = workbook.Sheets['Permissions'];
   if (permSheet) {
-    const data: any[] = xlsx.utils.sheet_to_json(permSheet, { header: 1 });
+    const data: any[] = utils.sheet_to_json(permSheet, { header: 1 });
     let count = 0;
     for (let i = 1; i < data.length; i++) {
         const row = data[i];
@@ -52,7 +53,7 @@ async function main() {
   // 3. Users
   const usersSheet = workbook.Sheets['Users'];
   if (usersSheet) {
-    const data: any[] = xlsx.utils.sheet_to_json(usersSheet, { header: 1 });
+    const data: any[] = utils.sheet_to_json(usersSheet, { header: 1 });
     let count = 0;
     for (let i = 1; i < data.length; i++) {
       const row = data[i];
@@ -80,7 +81,7 @@ async function main() {
   // 4. Customers
   const custSheet = workbook.Sheets['Customers'];
   if (custSheet) {
-    const data: any[] = xlsx.utils.sheet_to_json(custSheet, { header: 1 });
+    const data: any[] = utils.sheet_to_json(custSheet, { header: 1 });
     let count = 0;
     for (let i = 1; i < data.length; i++) {
       const row = data[i];
@@ -120,7 +121,7 @@ async function main() {
   // 5. Zones
   const zonesSheet = workbook.Sheets['Zones'];
   if (zonesSheet) {
-    const data: any[] = xlsx.utils.sheet_to_json(zonesSheet, { header: 1 });
+    const data: any[] = utils.sheet_to_json(zonesSheet, { header: 1 });
     let count = 0;
     for (let i = 1; i < data.length; i++) {
       const row = data[i];
@@ -150,7 +151,7 @@ async function main() {
     const firstWarehouse = await prisma.warehouse.findFirst();
     const defaultWarehouseId = firstWarehouse ? firstWarehouse.id : 1;
 
-    const data: any[] = xlsx.utils.sheet_to_json(masterSheet, { header: 1 });
+    const data: any[] = utils.sheet_to_json(masterSheet, { header: 1 });
     let count = 0;
     for (let i = 1; i < data.length; i++) {
       const row = data[i];

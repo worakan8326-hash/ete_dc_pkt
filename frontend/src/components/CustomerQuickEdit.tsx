@@ -172,7 +172,7 @@ const CustomerQuickEdit: React.FC<CustomerQuickEditProps> = ({
   return (
     <>
       <div className="fixed inset-0 z-[150] flex items-center justify-center p-0 bg-black/60 animate-fade-in">
-         <div className="bg-white w-full max-w-lg rounded-2xl shadow-xl overflow-hidden border border-slate-100 flex flex-col max-h-[92vh] m-2">
+         <div className="bg-white w-full max-w-3xl rounded-2xl shadow-xl overflow-hidden border border-slate-100 flex flex-col max-h-[92vh] m-2">
             {/* Header - Navy Standard */}
             <div className="bg-[#0b1b32] px-6 py-8 text-white flex items-center justify-between shrink-0 relative overflow-hidden">
                 <div className="flex items-center gap-4 relative z-10">
@@ -189,11 +189,13 @@ const CustomerQuickEdit: React.FC<CustomerQuickEditProps> = ({
                 </button>
             </div>
 
-            <div className="p-6 md:p-8 space-y-5 overflow-y-auto scrollbar-hide bg-white">
-               {/* Shop Photo Section */}
-               <div className="flex flex-col items-center justify-center p-2 mb-2">
-                 <label className={labelClass + " !ml-0 self-start"}>รูปหน้าร้าน (Shop Photo)</label>
-                 <div className="relative group w-full aspect-[16/9] sm:aspect-[21/9] bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl overflow-hidden flex items-center justify-center transition-all hover:border-blue-300 hover:bg-blue-50/30">
+            <div className="overflow-y-auto scrollbar-hide bg-white flex-1">
+               {/* Shop Photo Section - Bleed Layout */}
+               <div className="flex flex-col items-center justify-center mb-6">
+                 <div className="w-full px-6 md:px-8 mt-6 mb-2">
+                    <label className={labelClass + " !ml-0"}>รูปหน้าร้าน (Shop Photo)</label>
+                 </div>
+                 <div className="relative group w-full aspect-[16/9] sm:aspect-[21/9] bg-slate-50 border-y border-slate-200 overflow-hidden flex items-center justify-center transition-all hover:bg-blue-50/30">
                     {editingCustomer.image_url ? (
                       <>
                         <img 
@@ -240,113 +242,115 @@ const CustomerQuickEdit: React.FC<CustomerQuickEditProps> = ({
                  </div>
                </div>
 
-               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4">
-                  <div>
-                    <label className={labelClass}>เลข CV {isCvDuplicate && <span className="text-rose-500 font-black">(ซ้ำ)</span>}</label>
-                    <input 
-                      className={inputClass} 
-                      value={editingCustomer.cv} 
-                      onChange={(e) => setEditingCustomer((p:any) => ({...p, cv: e.target.value}))} 
-                      placeholder="รหัส CV..." 
-                      title="CV number"
-                    />
-                  </div>
-                  <div>
-                    <label className={labelClass}>เบอร์โทรศัพท์</label>
-                    <input 
-                      className={inputClass} 
-                      value={editingCustomer.phone} 
-                      maxLength={10} 
-                      onChange={(e) => setEditingCustomer((p:any) => ({...p, phone: e.target.value.replace(/\D/g, '')}))} 
-                      placeholder="08x-xxx-xxxx" 
-                      title="Phone number"
-                    />
-                  </div>
-
-                  <div className="col-span-2">
-                    <label className={labelClass}>ชื่อลูกค้า / ชื่อร้าน <span className="text-rose-500 font-black">*</span></label>
-                    <input 
-                      className={inputClass} 
-                      value={editingCustomer.name} 
-                      onChange={(e) => setEditingCustomer((p:any) => ({...p, name: e.target.value}))} 
-                      placeholder="ระบุชื่อจริงหรือชื่อร้าน..." 
-                      title="Customer name"
-                    />
-                  </div>
-
-                  <div className="col-span-2">
-                    <label className={labelClass}>ที่อยู่</label>
-                    <textarea 
-                      rows={2} 
-                      className={`${inputClass} h-auto py-3 resize-none leading-relaxed min-h-[80px]`}
-                      value={editingCustomer.address} 
-                      onChange={(e) => setEditingCustomer((p:any) => ({...p, address: e.target.value}))} 
-                      placeholder="ระบุบ้านเลขที่, ถนน, ซอย..." 
-                      title="Address detail"
-                    />
-                  </div>
-
-                  <div>
-                    <label className={labelClass}>จังหวัด</label>
-                    <div className="relative">
-                       <select title="Province" className={`${inputClass} appearance-none`} value={editingCustomer.province} onChange={(e) => handleProvinceChange(e.target.value)}>
-                          <option value="">-- จังหวัด --</option>
-                          {thaiAddressData.map(p => <option key={p.name_th} value={p.name_th}>{p.name_th}</option>)}
-                       </select>
-                       <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none">expand_more</span>
+               <div className="px-6 md:px-8 pb-8 space-y-6">
+                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4">
+                    <div>
+                      <label className={labelClass}>เลข CV {isCvDuplicate && <span className="text-rose-500 font-black">(ซ้ำ)</span>}</label>
+                      <input 
+                        className={inputClass} 
+                        value={editingCustomer.cv} 
+                        onChange={(e) => setEditingCustomer((p:any) => ({...p, cv: e.target.value}))} 
+                        placeholder="รหัส CV..." 
+                        title="CV number"
+                      />
                     </div>
-                  </div>
-                  <div>
-                    <label className={labelClass}>อำเภอ</label>
-                    <div className="relative">
-                       <select title="District" className={`${inputClass} appearance-none`} value={editingCustomer.district} onChange={(e) => handleDistrictChange(e.target.value)} disabled={!editingCustomer.province}>
-                          <option value="">-- อำเภอ --</option>
-                          {districts.map(d => <option key={d} value={d}>{d}</option>)}
-                       </select>
-                       <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none">expand_more</span>
+                    <div>
+                      <label className={labelClass}>เบอร์โทรศัพท์</label>
+                      <input 
+                        className={inputClass} 
+                        value={editingCustomer.phone} 
+                        maxLength={10} 
+                        onChange={(e) => setEditingCustomer((p:any) => ({...p, phone: e.target.value.replace(/\D/g, '')}))} 
+                        placeholder="08x-xxx-xxxx" 
+                        title="Phone number"
+                      />
                     </div>
-                  </div>
-                  <div>
-                    <label className={labelClass}>ตำบล</label>
-                    <div className="relative">
-                       <select title="Subdistrict" className={`${inputClass} appearance-none`} value={editingCustomer.subdistrict} onChange={(e) => handleTambonChange(e.target.value)} disabled={!editingCustomer.district}>
-                          <option value="">-- ตำบล --</option>
-                          {subdistricts.map((t: any) => <option key={t.name_th} value={t.name_th}>{t.name_th}</option>)}
-                       </select>
-                       <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none">expand_more</span>
+
+                    <div className="col-span-2">
+                      <label className={labelClass}>ชื่อลูกค้า / ชื่อร้าน <span className="text-rose-500 font-black">*</span></label>
+                      <input 
+                        className={inputClass} 
+                        value={editingCustomer.name} 
+                        onChange={(e) => setEditingCustomer((p:any) => ({...p, name: e.target.value}))} 
+                        placeholder="ระบุชื่อจริงหรือชื่อร้าน..." 
+                        title="Customer name"
+                      />
                     </div>
-                  </div>
-                  <div>
-                    <label className={labelClass}>รหัสไปรษณีย์</label>
-                    <input title="Zipcode" className={`${inputClass} opacity-60 cursor-not-allowed`} value={editingCustomer.zipcode || ''} readOnly placeholder="00000" />
-                  </div>
-               </div>
 
-               <div className="pt-2">
-                  <button title="Open Map Picker" onClick={() => setShowMapPicker(true)} className="w-full h-12 bg-blue-50 text-blue-600 rounded-xl text-[12px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-blue-100 border border-blue-100 transition-all active:scale-95">
-                     <span className="material-symbols-outlined text-[20px]">map</span> ใส่พิกัดแผนที่ร้านค้า
-                  </button>
-               </div>
+                    <div className="col-span-2">
+                      <label className={labelClass}>ที่อยู่</label>
+                      <textarea 
+                        rows={2} 
+                        className={`${inputClass} h-auto py-3 resize-none leading-relaxed min-h-[80px]`}
+                        value={editingCustomer.address} 
+                        onChange={(e) => setEditingCustomer((p:any) => ({...p, address: e.target.value}))} 
+                        placeholder="ระบุบ้านเลขที่, ถนน, ซอย..." 
+                        title="Address detail"
+                      />
+                    </div>
 
-               <div className="pt-4 shrink-0 pb-2">
-                  <button 
-                    onClick={handleSave} 
-                    disabled={loading || !editingCustomer.name || isCvDuplicate} 
-                    className={`w-full h-16 rounded-2xl text-[15px] font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-3 shadow-lg ${
-                      loading || !editingCustomer.name || isCvDuplicate
-                        ? 'bg-slate-100 text-slate-300 shadow-none cursor-not-allowed'
-                        : 'bg-[#0b1b32] text-white shadow-slate-900/10 active:scale-[0.98]'
-                    }`}
-                  >
-                    {loading ? (
-                      <div className="w-5 h-5 border-3 border-white/20 border-t-white rounded-full animate-spin"></div>
-                    ) : (
-                      <>
-                        <span className="material-symbols-outlined text-[22px]">save</span>
-                        ยืนยันและบันทึกข้อมูลลูกค้า
-                      </>
-                    )}
-                  </button>
+                    <div>
+                      <label className={labelClass}>จังหวัด</label>
+                      <div className="relative">
+                         <select title="Province" className={`${inputClass} appearance-none`} value={editingCustomer.province} onChange={(e) => handleProvinceChange(e.target.value)}>
+                            <option value="">-- จังหวัด --</option>
+                            {thaiAddressData.map(p => <option key={p.name_th} value={p.name_th}>{p.name_th}</option>)}
+                         </select>
+                         <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none">expand_more</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className={labelClass}>อำเภอ</label>
+                      <div className="relative">
+                         <select title="District" className={`${inputClass} appearance-none`} value={editingCustomer.district} onChange={(e) => handleDistrictChange(e.target.value)} disabled={!editingCustomer.province}>
+                            <option value="">-- อำเภอ --</option>
+                            {districts.map(d => <option key={d} value={d}>{d}</option>)}
+                         </select>
+                         <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none">expand_more</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className={labelClass}>ตำบล</label>
+                      <div className="relative">
+                         <select title="Subdistrict" className={`${inputClass} appearance-none`} value={editingCustomer.subdistrict} onChange={(e) => handleTambonChange(e.target.value)} disabled={!editingCustomer.district}>
+                            <option value="">-- ตำบล --</option>
+                            {subdistricts.map((t: any) => <option key={t.name_th} value={t.name_th}>{t.name_th}</option>)}
+                         </select>
+                         <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none">expand_more</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className={labelClass}>รหัสไปรษณีย์</label>
+                      <input title="Zipcode" className={`${inputClass} opacity-60 cursor-not-allowed`} value={editingCustomer.zipcode || ''} readOnly placeholder="00000" />
+                    </div>
+                 </div>
+
+                 <div className="pt-2">
+                    <button title="Open Map Picker" onClick={() => setShowMapPicker(true)} className="w-full h-12 bg-blue-50 text-blue-600 rounded-xl text-[12px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-blue-100 border border-blue-100 transition-all active:scale-95">
+                       <span className="material-symbols-outlined text-[20px]">map</span> ใส่พิกัดแผนที่ร้านค้า
+                    </button>
+                 </div>
+
+                 <div className="pt-4 shrink-0 pb-2">
+                    <button 
+                      onClick={handleSave} 
+                      disabled={loading || !editingCustomer.name || isCvDuplicate} 
+                      className={`w-full h-16 rounded-2xl text-[15px] font-black uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-3 shadow-lg ${
+                        loading || !editingCustomer.name || isCvDuplicate
+                          ? 'bg-slate-100 text-slate-300 shadow-none cursor-not-allowed'
+                          : 'bg-[#0b1b32] text-white shadow-slate-900/10 active:scale-[0.98]'
+                      }`}
+                    >
+                      {loading ? (
+                        <div className="w-5 h-5 border-3 border-white/20 border-t-white rounded-full animate-spin"></div>
+                      ) : (
+                        <>
+                          <span className="material-symbols-outlined text-[22px]">save</span>
+                          ยืนยันและบันทึกข้อมูลลูกค้า
+                        </>
+                      )}
+                    </button>
+                 </div>
                </div>
             </div>
          </div>

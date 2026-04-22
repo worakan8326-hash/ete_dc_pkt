@@ -133,6 +133,7 @@ const Welcome: React.FC<WelcomeProps> = ({ user, stats, latestVersion, currentVe
             { id: 'return', label: 'Return', sub: 'รับพัสดุคืน', icon: 'assignment_return', color: 'bg-purple-500', visible: permissions.btn_return !== false },
             { id: 'job-request', label: 'Jobs', sub: 'แจ้งงาน / คืน', icon: 'assignment', color: 'bg-blue-500', visible: permissions.btn_job_request !== false },
             { id: 'logistics', label: 'Logistics', sub: 'งานขนส่ง', icon: 'local_shipping', color: 'bg-emerald-600', visible: permissions.btn_logistics !== false },
+            { id: 'transfer', label: 'Transfer', sub: 'ย้ายระหว่างคลัง', icon: 'swap_horiz', color: 'bg-sky-500', visible: permissions.btn_transfer !== false },
             { id: 'survey', label: 'Survey', sub: 'สำรวจลูกค้า', icon: 'person_search', color: 'bg-emerald-500', visible: true },
             { id: 'repair', label: 'Approv', sub: 'ศูนย์ซ่อม/คืน', icon: 'engineering', color: 'bg-rose-600', isLarge: true, visible: (user.role === 'admin' || user.role === 'manager' || permissions.btn_repair === true) },
             { id: 'audit', label: 'Admin Logs', sub: 'บันทึกระบบ', icon: 'admin_panel_settings', color: 'bg-slate-800', visible: (user.role === 'admin' || user.role === 'manager') }

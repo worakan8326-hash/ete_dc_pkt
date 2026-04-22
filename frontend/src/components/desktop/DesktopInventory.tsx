@@ -20,9 +20,10 @@ interface DesktopInventoryProps {
   warehouses?: any[];
   onRefresh?: () => void;
   loading?: boolean;
+  onNavigate?: (tabId: string) => void;
 }
 
-const DesktopInventory: React.FC<DesktopInventoryProps> = ({ items, warehouses = [], onRefresh, loading }) => {
+const DesktopInventory: React.FC<DesktopInventoryProps> = ({ items, warehouses = [], onRefresh, loading, onNavigate }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('ทั้งหมด');
   const [filterBrand, setFilterBrand] = useState('ทั้งหมด');
@@ -169,7 +170,6 @@ const DesktopInventory: React.FC<DesktopInventoryProps> = ({ items, warehouses =
               </button>
            </div>
         </div>
-
         <div className="flex items-center gap-2">
            <button onClick={exportToExcel} className="p-2.5 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-xl hover:bg-emerald-600 hover:text-white transition-all shadow-sm" title="Excel">
               <FileSpreadsheet size={20} />
@@ -185,6 +185,17 @@ const DesktopInventory: React.FC<DesktopInventoryProps> = ({ items, warehouses =
            >
               <RefreshCw size={20} />
            </button>
+
+           {onNavigate && (
+              <button 
+                onClick={() => onNavigate('transfer')}
+                className="bg-sky-500 flex items-center justify-center gap-2 px-5 h-[40px] rounded-xl text-white shadow-lg shadow-sky-500/20 active:scale-95 transition-all ml-2"
+                title="ย้ายพัสดุระหว่างคลัง"
+              >
+                <span className="material-symbols-outlined text-[18px]">swap_horiz</span>
+                <span className="text-[12px] font-black uppercase tracking-widest whitespace-nowrap">ย้ายพัสดุ</span>
+              </button>
+           )}
         </div>
       </div>
 

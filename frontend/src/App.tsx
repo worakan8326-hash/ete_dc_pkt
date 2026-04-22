@@ -274,14 +274,14 @@ function App() {
 
 
     return itemsList.filter(nav => {
-      // สำหรับมือถือ ให้โชว์แค่ "หน้าแรก" ตามใจลูกค้า
-      if (isMobile && nav.id !== 'welcome') return false;
+      // สำหรับมือถือ ให้โชว์แค่ "หน้าแรก" และ "ย้ายพัสดุ" ตามความต้องการเร่งด่วน
+      if (isMobile && nav.id !== 'welcome' && nav.id !== 'transfer') return false;
 
       const role = user.role || '';
       if (role.toLowerCase().includes('manager') || role.toLowerCase().includes('admin')) return true;
       const rolePerms = permissions[role] || {};
       const mapping: Record<string, string> = {
-        'welcome': 'nav_home', 'dashboard': 'nav_inventory', 'job-request': 'nav_job_request', 'receive': 'nav_receive', 'issue': 'nav_issue', 'return': 'nav_return', 'history': 'nav_history', 'calendar': 'nav_calendar', 'settings': 'nav_settings', 'repair': 'nav_repair', 'logistics': 'nav_logistics', 'audit': 'nav_settings', 'survey': 'nav_home'
+        'welcome': 'nav_home', 'dashboard': 'nav_inventory', 'job-request': 'nav_job_request', 'receive': 'nav_receive', 'issue': 'nav_issue', 'return': 'nav_return', 'history': 'nav_history', 'calendar': 'nav_calendar', 'settings': 'nav_settings', 'repair': 'nav_repair', 'logistics': 'nav_logistics', 'audit': 'nav_settings', 'survey': 'nav_home', 'transfer': 'nav_transfer'
       };
       // only admins/managers can see audit log anyway, handled above. But we fallback to nav_settings perms if they manually grant.
       const permKey = mapping[nav.id];
@@ -337,7 +337,7 @@ function App() {
                   <Suspense fallback={<div className="flex items-center justify-center p-20 opacity-50 font-black">กำลังซิงค์...</div>}>
                     <Fragment>
                       {activeTab === 'welcome' && <Welcome user={user} stats={stats} announcement={settings.ANNOUNCEMENT || ''} currentVersion={CURRENT_APP_VERSION} latestVersion={settings.APP_VERSION || ''} onLogout={handleLogout} setActiveTab={setActiveTab} permissions={permissions} />}
-                      {activeTab === 'dashboard' && <Dashboard items={items} warehouses={warehouses} onRefresh={() => fetchData(true)} loading={loading} />}
+                      {activeTab === 'dashboard' && <Dashboard items={items} warehouses={warehouses} onRefresh={() => fetchData(true)} loading={loading} onNavigate={setActiveTab} />}
 
                       {activeTab === 'history' && <HistoryView transactions={transactions} user={user} customers={customers} onRefresh={fetchData} onVoid={handleVoidFromHistory} />}
                       {activeTab === 'receive' && <ReceiveForm items={items} warehouses={warehouses} operatorName={user.name} transactions={transactions} thaiAddressData={THAI_ADDRESS_ALL} onSuccess={() => { fetchData(false); playSuccessSound(); }} />}
@@ -360,6 +360,39 @@ function App() {
                   </Suspense>
                 </div>
               </main>
+
+              {/* 📱 Premium Bottom Navigation */}
+              <nav className="fixed bottom-6 left-4 right-4 h-20 bg-white/80 backdrop-blur-2xl rounded-[2.5rem] border border-white/50 shadow-[0_20px_50px_-15px_rgba(0,0,0,0.15)] flex items-center justify-around px-4 z-[60]">
+                {[
+                  { id: 'welcome', icon: 'home', label: 'หน้าแรก' },
+                  { id: 'dashboard', icon: 'inventory_2', label: 'สต็อก' },
+                  { id: 'transfer', icon: 'swap_horiz', label: 'ย้ายพัสดุ', primary: true }
+                ].map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => setActiveTab(item.id)}
+                    className={`flex flex-col items-center justify-center gap-1 transition-all duration-300 relative ${
+                      activeTab === item.id 
+                        ? (item.primary ? 'text-sky-600 scale-110' : 'text-indigo-600 scale-110') 
+                        : 'text-slate-400 hover:text-slate-600'
+                    }`}
+                  >
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-500 ${
+                      activeTab === item.id 
+                        ? (item.primary ? 'bg-sky-100 shadow-lg shadow-sky-100' : 'bg-indigo-50 shadow-lg shadow-indigo-50')
+                        : 'bg-transparent'
+                    }`}>
+                      <span className={`material-symbols-outlined text-[26px] ${activeTab === item.id ? 'font-black' : ''}`}>
+                        {item.icon}
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-black uppercase tracking-widest">{item.label}</span>
+                    {activeTab === item.id && (
+                      <div className={`absolute -bottom-1 w-1 h-1 rounded-full animate-pulse ${item.primary ? 'bg-sky-500' : 'bg-indigo-500'}`}></div>
+                    )}
+                  </button>
+                ))}
+              </nav>
             </div>
 
             {/* Desktop View */}
@@ -406,7 +439,7 @@ function App() {
                     {activeTab === 'settings' && <DesktopSettings onRefresh={fetchData} user={user} transactions={transactions} logisticsJobs={logisticsJobs} FULL_ADDRESS_LIST={THAI_ADDRESS_ALL} permissions={permissions} clientVersion={CURRENT_APP_VERSION} />}
                     {activeTab === 'void' && <VoidForm transactions={transactions} user={user} customers={customers} onRefresh={() => { fetchData(false); playSuccessSound(); }} onUpdateTransactions={updateLocalTransactions} initialTxnNo={voidTxnId || undefined} setActiveTab={setActiveTab} />}
                     {activeTab === 'calendar' && <DesktopCalendar transactions={transactions} items={items} />}
-                    {activeTab === 'inventory' && <DesktopInventory items={items} warehouses={warehouses} onRefresh={() => fetchData(true)} loading={loading} />}
+                    {activeTab === 'inventory' && <DesktopInventory items={items} warehouses={warehouses} onRefresh={() => fetchData(true)} loading={loading} onNavigate={setActiveTab} />}
                     {activeTab === 'survey' && <CustomerSurvey items={items} customers={customers} transactions={transactions} logisticsJobs={logisticsJobs} operatorName={user.name} onRefresh={() => fetchData(true)} onClose={() => setActiveTab('welcome')} thaiAddressData={THAI_ADDRESS_ALL} />}
                     {activeTab === 'job-request' && <JobRequestForm items={items} customers={customers} operatorName={user.name} thaiAddressData={THAI_ADDRESS_ALL} onSuccess={() => fetchData(true)} onClose={() => setActiveTab('welcome')} />}
                     {activeTab === 'repair' && <RepairManagement items={items} transactions={transactions} customers={customers} operatorName={user.name} onSuccess={() => fetchData(true)} onClose={() => setActiveTab('welcome')} loading={loading} />}

@@ -492,9 +492,28 @@ router.post('/processBatch', async (req: Request, res: Response) => {
           } else if (isPickingUpToTransit) {
             transitChange = qty;
           } else if (effectiveAction === 'transfer') {
-            // STOCK TRANSFER LOGIC
+            // STOCK TRANSFER LOGIC (Corrected: Increases destination warehouse stock)
             if (!resolvedToWarehouseId || isNaN(resolvedToWarehouseId)) throw new Error("กรุณาเลือกคลังปลายทาง");
             if (resolvedWarehouseId === resolvedToWarehouseId) throw new Error("คลังต้นทางและปลายทางต้องไม่เป็นคลังเดียวกัน");
+            
+            // 🚨 ATOMIC UPDATE: Handle Destination ADDITION
+            await tx.warehouseStock.upsert({
+              where: {
+                item_id_warehouse_id: {
+                  item_id: masterItemId,
+                  warehouse_id: resolvedToWarehouseId
+                }
+              },
+              update: { stock_qty: { increment: qty } },
+              create: {
+                item_id: masterItemId,
+                warehouse_id: resolvedToWarehouseId,
+                stock_qty: qty,
+                repair_qty: 0, scrap_qty: 0, lost_qty: 0, quarantine_qty: 0, transit_qty: 0
+              }
+            });
+
+            // Set stockChange to decrement from Source in the next block
             stockChange = -qty;
           } else {
             // Fallback for direct movements (un-jobbed transactions)
@@ -612,17 +631,20 @@ router.post('/processBatch', async (req: Request, res: Response) => {
           }
 
           // 2. Perform Atomic Update on MasterItem (Global Cache)
-          await tx.masterItem.update({
-            where: { id: masterItemId },
-            data: {
-              stock_qty: { increment: stockChange },
-              repair_qty: { increment: repairChange },
-              scrap_qty: { increment: scrapChange },
-              lost_qty: { increment: lostChange },
-              quarantine_qty: { increment: quarantineChange },
-              transit_qty: { increment: transitChange }
-            }
-          });
+          // 🛡️ INTERNAL TRANSFER: Do not change global totals during warehouse transfer
+          if (effectiveAction !== 'transfer') {
+            await tx.masterItem.update({
+              where: { id: masterItemId },
+              data: {
+                stock_qty: { increment: stockChange },
+                repair_qty: { increment: repairChange },
+                scrap_qty: { increment: scrapChange },
+                lost_qty: { increment: lostChange },
+                quarantine_qty: { increment: quarantineChange },
+                transit_qty: { increment: transitChange }
+              }
+            });
+          }
 
           // 3. Perform Atomic Update on WarehouseStock (Local Location)
           await tx.warehouseStock.upsert({
@@ -652,23 +674,31 @@ router.post('/processBatch', async (req: Request, res: Response) => {
             }
           });
 
-          // 4. Special Case: TRANSFER - Increment the Destination Warehouse
-          if (effectiveAction === 'transfer' && resolvedToWarehouseId) {
-            await tx.warehouseStock.upsert({
+          // 5. 🏠 CUSTOMER INVENTORY LOGIC (Persistent Storage)
+          if (cv && cv !== 'ADMIN_REVIEW' && cv !== 'QUARANTINE_REVIEW' && !isSurveyJob && !isStatusOnly) {
+            let customerQtyChange = 0;
+            if (isFulfillingDelivery) {
+              customerQtyChange = qty;
+            } else if (isReturningToBase) {
+              customerQtyChange = -qty;
+            }
+
+            if (customerQtyChange !== 0) {
+              await tx.customerInventory.upsert({
                 where: {
-                    item_id_warehouse_id: {
-                        item_id: masterItemId,
-                        warehouse_id: resolvedToWarehouseId
-                    }
+                  customer_cv_item_id: {
+                    customer_cv: cv,
+                    item_id: masterItemId
+                  }
                 },
-                update: { stock_qty: { increment: qty } },
+                update: { quantity: { increment: customerQtyChange } },
                 create: {
-                    item_id: masterItemId,
-                    warehouse_id: resolvedToWarehouseId,
-                    stock_qty: qty,
-                    repair_qty: 0, scrap_qty: 0, lost_qty: 0, quarantine_qty: 0, transit_qty: 0
+                  customer_cv: cv,
+                  item_id: masterItemId,
+                  quantity: Math.max(0, customerQtyChange)
                 }
-            });
+              });
+            }
           }
         }
 

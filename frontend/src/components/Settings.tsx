@@ -367,6 +367,7 @@ export default function Settings({ onRefresh, user, FULL_ADDRESS_LIST, FILTERED_
               onDeleteCustomer={c => setDeleteConfirm({ show: true, rowIndex: c.rowIndex, itemName: c.name, type: 'customer' })} 
               onLoadCustomers={loadData}
               isLoadingCustomers={loading}
+              thaiAddressData={FULL_ADDRESS_LIST}
             />
           )}
           

@@ -29,7 +29,7 @@ model RolePermission {
 model Customer {
   cv           String  @id
   name         String
-  phone         String?
+  phone        String?
   address      String?
   sub_district String?
   district     String?
@@ -39,14 +39,15 @@ model Customer {
   longitude    Float?
   image_url    String?
   jobs         Job[]
+  inventory    CustomerInventory[]
 }
 
 model Warehouse {
   id           Int              @id @default(autoincrement())
   name         String           @unique
+  is_active    Boolean          @default(true)
   latitude     Float?
   longitude    Float?
-  is_active    Boolean          @default(true)
   jobs         Job[]
   target_txns  Transaction[]    @relation("TargetWarehouse")
   transactions Transaction[]
@@ -91,6 +92,20 @@ model MasterItem {
   transit_qty      Int              @default(0)
   transactions     Transaction[]
   warehouse_stocks WarehouseStock[]
+  customer_inventories CustomerInventory[]
+}
+
+model CustomerInventory {
+  id           Int        @id @default(autoincrement())
+  customer_cv  String
+  item_id      Int
+  quantity     Int        @default(0)
+  last_updated DateTime   @default(now()) @updatedAt
+  
+  customer     Customer   @relation(fields: [customer_cv], references: [cv])
+  item         MasterItem @relation(fields: [item_id], references: [id])
+  
+  @@unique([customer_cv, item_id])
 }
 
 model Job {
@@ -113,19 +128,18 @@ model Job {
 }
 
 model Transaction {
-  id               Int        @id @default(autoincrement())
+  id               Int         @id @default(autoincrement())
   job_id           String?
   item_id          Int?
   operator_id      Int
   action_type      String
   quantity         Int
-  activity_name    String?
   zone_name        String?
   return_reason    String?
   cabinet_status   String?
   cancel_reason    String?
   image_url        String?
-  created_at       DateTime   @default(now())
+  created_at       DateTime    @default(now())
   serial_number    String?
   distance_warning String?
   lat              Float?
@@ -134,12 +148,13 @@ model Transaction {
   to_warehouse_id  Int?
   warehouse_id     Int?
   note             String?
+  activity_name    String?
   item             MasterItem? @relation(fields: [item_id], references: [id])
-  job              Job?       @relation(fields: [job_id], references: [job_id])
-  operator         User       @relation(fields: [operator_id], references: [id])
-  target_warehouse Warehouse? @relation("TargetWarehouse", fields: [to_warehouse_id], references: [id])
-  warehouse        Warehouse? @relation(fields: [warehouse_id], references: [id])
-  zone             Zone?      @relation(fields: [zone_name], references: [name])
+  job              Job?        @relation(fields: [job_id], references: [job_id])
+  operator         User        @relation(fields: [operator_id], references: [id])
+  target_warehouse Warehouse?  @relation("TargetWarehouse", fields: [to_warehouse_id], references: [id])
+  warehouse        Warehouse?  @relation(fields: [warehouse_id], references: [id])
+  zone             Zone?       @relation(fields: [zone_name], references: [name])
 }
 
 model SystemSetting {

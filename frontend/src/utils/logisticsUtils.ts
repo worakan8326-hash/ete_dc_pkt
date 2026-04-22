@@ -77,14 +77,152 @@ export const promoteItemStatus = (category: ItemCategory, originalStatus: string
  * Formats the item name following the premium specification.
  * Format: [ประเภท] [ยี่ห้อ] [รายการ] [รายละเอียด] ขนาด [ขนาด] สภาพ [สภาพ]
  */
-export const formatItemName = (it: any) => {
+export const formatItemName = (it: any, options?: { hideCondition?: boolean }) => {
   const mainPart = `${it.ประเภท || ''} ${it.ยี่ห้อหรือรูปแบบ || it.brand || ''} ${it.รายการ || it.item_name || ''} ${it.รายละเอียด || it.details || ''}`.replace(/\s+/g, ' ').trim();
-  const metaPart = `${it.ขนาด ? `ขนาด ${it.ขนาด}` : ''} ${it.สภาพ ? `สภาพ ${it.สภาพ}` : ''}`.replace(/\s+/g, ' ').trim();
+  const metaPart = `${it.ขนาด ? `ขนาด ${it.ขนาด}` : ''} ${!options?.hideCondition && it.สภาพ ? `สภาพ ${it.สภาพ}` : ''}`.replace(/\s+/g, ' ').trim();
   
   return { 
     main: mainPart || it.รายการ || 'พัสดุอุปกรณ์', 
     meta: metaPart || '-' 
   };
+};
+
+/**
+ * 📦 Calculate Customer Inventory (Unified Logic)
+ * Shared between usePossession (Dashboard) and FulfillmentForm (Driver App)
+ */
+export const calculateCustomerInventory = (
+  transactions: any[], 
+  customerCv: string | undefined, 
+  logisticsJobs: any[] = [],
+  masterItems: any[] = []
+): any[] => {
+  const targetCv = String(customerCv || '').trim();
+  if (!targetCv) return [];
+
+  const map: Record<string, any> = {};
+  const processedJobIds = new Set<string>();
+
+  const normalizeCv = (val: any) => String(val || '').trim().toUpperCase().replace(/^A/, '');
+  const normalizedTargetCv = normalizeCv(targetCv);
+
+  const getJobId = (it: any) => {
+    const id = it.jobId || it.job_id || it.JobID || it.txnNo || it.txn_no || it.TxnNo || it.ref || it.id || '';
+    return String(id).trim();
+  };
+
+  const enrichItem = (it: any) => {
+    const itemId = it.item_id || it.rowIndex || it.rowIndexMaster || null;
+    if (!itemId) return it;
+
+    const master = masterItems.find(m => 
+      String(m.id) === String(itemId) || 
+      String(m.rowIndex) === String(itemId) || 
+      String(m.item_id) === String(itemId)
+    );
+
+    if (master) {
+      return {
+        ...it,
+        ประเภท: it.ประเภท || master.ประเภท || master.category || '',
+        ยี่ห้อหรือรูปแบบ: it.ยี่ห้อหรือรูปแบบ || it.brand || master.ยี่ห้อหรือรูปแบบ || master.brand || '',
+        รายการ: it.รายการ || it.item_name || master.รายการ || master.item_name || '',
+        ขนาด: it.ขนาด || it.size || master.ขนาด || master.size || '',
+        สภาพ: it.สภาพ || it.condition || it.Condition || master.สภาพ || master.condition || 'ปกติ'
+      };
+    }
+    return it;
+  };
+
+  const generateKey = (it: any) => {
+    const { main, meta } = formatItemName(it);
+    const cond = String(it.สภาพ || it.condition || 'ปกติ').trim();
+    return `${main}|${meta}|${cond}`;
+  };
+
+  // 1️⃣ Process Active/History Jobs
+  (logisticsJobs || []).forEach(job => {
+    const rawCv = String(job.cv || job.CV || job.CustomerID || '').trim();
+    if (normalizeCv(rawCv) !== normalizedTargetCv || rawCv === '') return;
+
+    const jId = getJobId(job);
+    if (jId && processedJobIds.has(jId)) return;
+    if (jId) processedJobIds.add(jId);
+
+    const js = String(job.status || '').toUpperCase();
+    const isConfirmed = js.includes('เสร็จ') || js.includes('สำเร็จ') || js.includes('SUCCESS') || js.includes('คืน') || js.includes('กลับ');
+
+    const { allAggregated } = aggregateJobItems(job.items || [], job.status);
+
+    allAggregated.forEach(agg => {
+      const enriched = enrichItem(agg.it);
+      const itemKey = generateKey(enriched);
+      const category = agg.category;
+      const qty = agg.totalQty;
+
+      if (!map[itemKey]) {
+        const { main } = formatItemName(enriched);
+        map[itemKey] = { 
+          name: main, 
+          type: enriched.ประเภท || '',
+          detail: enriched.รายละเอียด || enriched.details || '',
+          size: enriched.ขนาด || '',
+          condition: enriched.สภาพ || 'ปกติ',
+          qty: 0 
+        };
+      }
+
+      if (category === 'SEND' && isConfirmed) {
+        map[itemKey].qty += qty;
+        map[itemKey].lastStatus = agg.action_type || job.status || 'ส่งเสร็จแล้ว';
+        map[itemKey].lastDate = job.completion_date || job.deliveryDate || job.updated_at || job.date;
+      } else if (category === 'RETURN' && isConfirmed) {
+        map[itemKey].qty -= qty;
+      }
+    });
+  });
+
+  // 2️⃣ Process Historical Transactions
+  (transactions || []).forEach(t => {
+    const rawCv = String(t.CV || t.cv || t.CustomerID || '').trim();
+    if (normalizeCv(rawCv) !== normalizedTargetCv || rawCv === '') return;
+
+    const tId = getJobId(t);
+    if (tId && processedJobIds.has(tId)) return;
+
+    const enriched = enrichItem(t);
+    const itemKey = generateKey(enriched);
+    const status = String(t.สถานะ || t.Status || '').toUpperCase();
+    if (status.includes(HISTORY_STATUSES[0].toUpperCase())) return; // Simplified cancel check
+
+    const category = classifyLogisticsItem(status);
+    const qty = Number(t.จำนวน || t.qty || t.Quantity || 0);
+
+    if (!map[itemKey]) {
+      const { main } = formatItemName(enriched);
+      map[itemKey] = { 
+        name: main,
+        type: enriched.ประเภท || '',
+        detail: enriched.รายละเอียด || enriched.details || '',
+        size: enriched.ขนาด || '',
+        condition: enriched.สภาพ || 'ปกติ',
+        qty: 0 
+      };
+    }
+
+    const isIncoming = status.includes('ส่ง') || category === 'SEND';
+    const isOutgoing = status.includes('คืน') || category === 'RETURN';
+
+    if (isIncoming) {
+      map[itemKey].qty += qty;
+      map[itemKey].lastStatus = t.สถานะ ||'ส่งเสร็จแล้ว';
+      map[itemKey].lastDate = t["วัน-เวลา"] || t.Date || t.deliveryDate;
+    } else if (isOutgoing) {
+      map[itemKey].qty -= qty;
+    }
+  });
+
+  return Object.values(map).filter(it => it.qty > 0);
 };
 
 /**

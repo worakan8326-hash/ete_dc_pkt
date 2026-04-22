@@ -39,6 +39,7 @@ model Customer {
   longitude    Float?
   image_url    String?
   jobs         Job[]
+  inventory    CustomerInventory[]
 }
 
 model Warehouse {
@@ -91,6 +92,20 @@ model MasterItem {
   transit_qty      Int              @default(0)
   transactions     Transaction[]
   warehouse_stocks WarehouseStock[]
+  customer_inventories CustomerInventory[]
+}
+
+model CustomerInventory {
+  id           Int        @id @default(autoincrement())
+  customer_cv  String
+  item_id      Int
+  quantity     Int        @default(0)
+  last_updated DateTime   @default(now()) @updatedAt
+  
+  customer     Customer   @relation(fields: [customer_cv], references: [cv])
+  item         MasterItem @relation(fields: [item_id], references: [id])
+  
+  @@unique([customer_cv, item_id])
 }
 
 model Job {

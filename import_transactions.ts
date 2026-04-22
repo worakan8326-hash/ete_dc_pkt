@@ -1,4 +1,5 @@
-import * as xlsx from 'xlsx';
+import xlsx from 'xlsx';
+const { readFile, utils } = xlsx;
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -19,7 +20,7 @@ function excelDateToJSDate(serial: number) {
 
 async function main() {
   console.log('🔄 กำลังอ่านไฟล์ Excel เพื่ออิมพอร์ต Transactions / Jobs / Logs...');
-  const workbook = xlsx.readFile(filePath);
+  const workbook = readFile(filePath);
 
   const users = await prisma.user.findMany();
   const userNameToId: Record<string, number> = {};
@@ -32,7 +33,7 @@ async function main() {
   
   const jobsSheet = workbook.Sheets['JobRequests'];
   if (jobsSheet) {
-    const data: any[] = xlsx.utils.sheet_to_json(jobsSheet, { header: 1 });
+    const data: any[] = utils.sheet_to_json(jobsSheet, { header: 1 });
     let count = 0;
     for (let i = 1; i < data.length; i++) {
         const row = data[i]; 
@@ -76,7 +77,7 @@ async function main() {
   if (txnSheet) {
     await prisma.transaction.deleteMany({});
     
-    const data: any[] = xlsx.utils.sheet_to_json(txnSheet, { header: 1 });
+    const data: any[] = utils.sheet_to_json(txnSheet, { header: 1 });
     let count = 0;
     for (let i = 1; i < data.length; i++) {
         const row = data[i];
@@ -153,7 +154,7 @@ async function main() {
   const auditSheet = workbook.Sheets['AuditLogs'];
   if (auditSheet) {
     await prisma.auditLog.deleteMany({});
-    const data: any[] = xlsx.utils.sheet_to_json(auditSheet, { header: 1 });
+    const data: any[] = utils.sheet_to_json(auditSheet, { header: 1 });
     let count = 0;
     for (let i = 1; i < data.length; i++) {
         const row = data[i]; 

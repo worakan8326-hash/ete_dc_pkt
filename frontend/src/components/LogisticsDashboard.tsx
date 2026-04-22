@@ -623,7 +623,7 @@ const LogisticsDashboard: React.FC<LogisticsDashboardProps> = ({
                              const it = agg.it;
                              const fullItem = items.find(m => Number(m.id) === Number(it.rowIndex || it.item_id));
                              const displayItem = fullItem ? { ...fullItem, ...it } : it;
-                             const { main, meta } = formatItemName(displayItem);
+                             const { main, meta } = formatItemName(displayItem, { hideCondition: agg.category === 'RETURN' });
                              const isFreezer = main.includes('ตู้แช่') || meta.includes('ตู้แช่');
 
                              if (isFreezer) {

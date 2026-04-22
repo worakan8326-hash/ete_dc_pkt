@@ -274,6 +274,7 @@ export default function CustomerSurvey({
         customers={searchResults} 
         userLocation={userLocation} 
         onSelectCustomer={handleSelectCustomer}
+        thaiAddressData={thaiAddressData}
       />
 
       {!selectedCustomer ? (

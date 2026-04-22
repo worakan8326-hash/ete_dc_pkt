@@ -6,7 +6,7 @@ interface ItemSelectorProps {
   items: MaterialItem[];
   cart: any[];
   tempSubItems: any[];
-  action: 'receive' | 'issue' | 'return';
+  action: 'receive' | 'issue' | 'return' | 'transfer';
   onAddToCart: (item: MaterialItem, quantity: number, displayString: string, serialNumber?: string) => void;
   onAddSubItem: (item: MaterialItem, quantity: number, type: 'accessory' | 'sticker') => void;
   onRemoveSubItem: (idx: number) => void;
@@ -225,7 +225,7 @@ const ItemSelector: React.FC<ItemSelectorProps> = ({
       return;
     }
 
-    let finalItemCandidate = filteredByItemName.length > 0 ? filteredByItemName[0] : null;
+    let finalItemCandidate = filteredByDetail.length > 0 ? filteredByDetail[0] : null;
 
     const targetCondition = fixedCondition || condition || receiveCondition;
     console.log('Target Condition:', targetCondition);

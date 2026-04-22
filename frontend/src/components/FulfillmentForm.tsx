@@ -20,6 +20,30 @@ const FulfillmentForm: React.FC<FulfillmentFormProps> = ({ job, operatorName, on
 
   const [deliveryStatus, setDeliveryStatus] = useState<Record<string, boolean>>({});
   const [pickupData, setPickupData] = useState<Record<string, { condition: string; reason: string; serialNumber?: string }>>({});
+  const [showConfirmModal, setShowConfirmModal] = useState<{ isOpen: boolean; message: string }>({ isOpen: false, message: '' });
+
+  // 📦 Customer Inventory Calculation (Persistent-prioritized)
+  const customerInventory = useMemo(() => {
+    const customer = customers.find(c => c.cv === (job.cv || job.CV));
+    if (customer?.inventory) return customer.inventory;
+    return calculateCustomerInventory(transactions, job.cv || job.CV, allJobs, items);
+  }, [transactions, job.cv, job.CV, allJobs, items, customers]);
+
+  const getInventoryQty = (item: any) => {
+    const { main } = formatItemName(item);
+    const normMain = main.replace(/[\s-]/g, '').toLowerCase();
+    const size = String(item.ขนาด || '').replace(/[\s-]/g, '').toLowerCase();
+
+    const match = customerInventory.find(inv => {
+      const invMain = inv.name.replace(/[\s-]/g, '').toLowerCase();
+      const invSize = String(inv.size || '').replace(/[\s-]/g, '').toLowerCase();
+
+      // Match if names are similar (one contains another) and sizes match
+      const nameMatches = invMain === normMain || invMain.includes(normMain) || normMain.includes(invMain);
+      return nameMatches && invSize === size;
+    });
+    return match ? match.qty : 0;
+  };
 
   // 🔥 ใช้ Core Logic ในการดึงรายการที่ยัง "ค้างอยู่"
   const { pendingItems } = useMemo(() => reconcileTransactions(job.items || []), [job.items]);
@@ -198,7 +222,7 @@ const FulfillmentForm: React.FC<FulfillmentFormProps> = ({ job, operatorName, on
                           {p.remainingQty > 1 ? p.remainingQty : p.displayIdx}
                         </div>
                         <div>
-                          <h4 className="text-[14px] font-bold text-slate-800 leading-none">{formatItemName(displayItem).main}</h4>
+                          <h4 className="text-[14px] font-bold text-slate-800 leading-none">{formatItemName(displayItem, { hideCondition: false }).main}</h4>
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter mt-0.5">{meta}</p>
                       </div>
                     </div>
@@ -232,7 +256,7 @@ const FulfillmentForm: React.FC<FulfillmentFormProps> = ({ job, operatorName, on
                 const _id = p.uid;
                 const fullItem = items.find(m => Number(m.id) === Number(it.rowIndex || it.item_id));
                 const displayItem = fullItem ? { ...fullItem, ...it } : it;
-                const { main, meta } = formatItemName(displayItem);
+                const { main, meta } = formatItemName(displayItem, { hideCondition: true });
 
                 return (
                   <div key={_id} className="bg-white/80 backdrop-blur-md border border-white rounded-[2.5rem] p-6 shadow-sm space-y-5">
@@ -242,7 +266,24 @@ const FulfillmentForm: React.FC<FulfillmentFormProps> = ({ job, operatorName, on
                       </div>
                       <div className="min-w-0 pr-4">
                         <p className="text-[15px] font-black text-slate-900 leading-tight uppercase truncate">{main} {(p.remainingQty === 1 && p.displayIdx) ? `(#${p.displayIdx})` : ''}</p>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{meta}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{meta}</p>
+                          {(() => {
+                            const invQty = getInventoryQty(it);
+                            if (invQty < p.remainingQty) {
+                              return (
+                                <span className="flex items-center gap-1 bg-rose-50 text-rose-500 text-[8px] font-black px-1.5 py-0.5 rounded-full border border-rose-100 animate-pulse">
+                                  <AlertCircle size={8} /> {invQty > 0 ? `มีเพียง ${invQty} ในครอบครอง` : 'ไม่พบในครอบครอง'}
+                                </span>
+                              );
+                            }
+                            return (
+                              <span className="flex items-center gap-1 bg-emerald-50 text-emerald-500 text-[8px] font-black px-1.5 py-0.5 rounded-full border border-emerald-100">
+                                <CheckCircle2 size={8} /> ยืนยันในครอบครอง ({invQty})
+                              </span>
+                            );
+                          })()}
+                        </div>
                       </div>
                     </div>
 
@@ -374,7 +415,7 @@ const FulfillmentForm: React.FC<FulfillmentFormProps> = ({ job, operatorName, on
       {/* 🔘 Float Bottom Action */}
       <div className="fixed bottom-8 left-6 right-6 z-50">
         <button
-          onClick={handleSave}
+          onClick={() => handleSave()}
           disabled={loading || !isComplete}
           className={`w-full h-16 bg-slate-900 text-white rounded-[2.2rem] flex items-center justify-center gap-3 font-black text-[15px] uppercase tracking-[0.2em] shadow-2xl transition-all active:scale-95 ${loading || !isComplete ? 'opacity-30 grayscale cursor-not-allowed' : 'shadow-slate-300'}`}
         >
@@ -386,6 +427,38 @@ const FulfillmentForm: React.FC<FulfillmentFormProps> = ({ job, operatorName, on
           <span>{loading ? 'กำลังบันทึก...' : 'บันทึกและปิดงาน'}</span>
         </button>
       </div>
+
+      {/* ⚠️ Confirmation Modal for Mismatched Data */}
+      {showConfirmModal.isOpen && (
+        <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-6 animate-in fade-in duration-300">
+          <div className="bg-white rounded-[2.5rem] shadow-2xl p-8 max-w-sm w-full animate-in zoom-in-95 duration-200 border border-slate-100">
+            <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center text-amber-500 mb-6 border border-amber-100 shadow-inner group overflow-hidden">
+              <AlertCircle size={32} className="group-hover:scale-110 transition-transform" />
+            </div>
+            <h3 className="text-xl font-black text-slate-800 leading-tight uppercase">ยืนยันข้อมูลไม่ตรงกัน</h3>
+            <p className="text-slate-500 text-sm font-bold mt-3 mb-8 leading-relaxed">
+              {showConfirmModal.message}
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowConfirmModal({ isOpen: false, message: '' })}
+                className="flex-1 h-14 bg-slate-100 text-slate-400 font-black text-[13px] uppercase tracking-widest rounded-2xl active:scale-95 transition-all"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={() => {
+                  setShowConfirmModal({ isOpen: false, message: '' });
+                  handleSave(true);
+                }}
+                className="flex-[1.5] h-14 bg-amber-500 text-white font-black text-[13px] uppercase tracking-widest rounded-2xl shadow-xl shadow-amber-200 active:scale-95 transition-all"
+              >
+                บันทึกทั้งที่ไม่ตรง
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
