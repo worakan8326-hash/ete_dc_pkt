@@ -360,41 +360,7 @@ function App() {
                   </Suspense>
                 </div>
               </main>
-
-              {/* 📱 Premium Bottom Navigation */}
-              <nav className="fixed bottom-6 left-4 right-4 h-20 bg-white/80 backdrop-blur-2xl rounded-[2.5rem] border border-white/50 shadow-[0_20px_50px_-15px_rgba(0,0,0,0.15)] flex items-center justify-around px-4 z-[60]">
-                {[
-                  { id: 'welcome', icon: 'home', label: 'หน้าแรก' },
-                  { id: 'dashboard', icon: 'inventory_2', label: 'สต็อก' },
-                  { id: 'transfer', icon: 'swap_horiz', label: 'ย้ายพัสดุ', primary: true }
-                ].map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => setActiveTab(item.id)}
-                    className={`flex flex-col items-center justify-center gap-1 transition-all duration-300 relative ${
-                      activeTab === item.id 
-                        ? (item.primary ? 'text-sky-600 scale-110' : 'text-indigo-600 scale-110') 
-                        : 'text-slate-400 hover:text-slate-600'
-                    }`}
-                  >
-                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-500 ${
-                      activeTab === item.id 
-                        ? (item.primary ? 'bg-sky-100 shadow-lg shadow-sky-100' : 'bg-indigo-50 shadow-lg shadow-indigo-50')
-                        : 'bg-transparent'
-                    }`}>
-                      <span className={`material-symbols-outlined text-[26px] ${activeTab === item.id ? 'font-black' : ''}`}>
-                        {item.icon}
-                      </span>
-                    </div>
-                    <span className="text-[10px] font-black uppercase tracking-widest">{item.label}</span>
-                    {activeTab === item.id && (
-                      <div className={`absolute -bottom-1 w-1 h-1 rounded-full animate-pulse ${item.primary ? 'bg-sky-500' : 'bg-indigo-500'}`}></div>
-                    )}
-                  </button>
-                ))}
-              </nav>
             </div>
-
             {/* Desktop View */}
             <div className="hidden md:block">
               <DesktopLayout
