@@ -103,8 +103,14 @@ export const calculateCustomerInventory = (
   const map: Record<string, any> = {};
   const processedJobIds = new Set<string>();
 
-  const normalizeCv = (val: any) => String(val || '').trim().toUpperCase().replace(/^A/, '');
+  const normalizeCv = (val: any) => String(val || '').trim().toUpperCase();
   const normalizedTargetCv = normalizeCv(targetCv);
+  const normalizedTargetCvNoA = normalizedTargetCv.replace(/^A/, '');
+
+  const checkCvMatch = (raw: any) => {
+    const n = normalizeCv(raw);
+    return n === normalizedTargetCv || n === normalizedTargetCvNoA || n.replace(/^A/, '') === normalizedTargetCvNoA;
+  };
 
   const getJobId = (it: any) => {
     const id = it.jobId || it.job_id || it.JobID || it.txnNo || it.txn_no || it.TxnNo || it.ref || it.id || '';
@@ -140,68 +146,13 @@ export const calculateCustomerInventory = (
     return `${main}|${meta}|${cond}`;
   };
 
-  // 1️⃣ Process Active/History Jobs
-  (logisticsJobs || []).forEach(job => {
-    const rawCv = String(job.cv || job.CV || job.CustomerID || '').trim();
-    if (normalizeCv(rawCv) !== normalizedTargetCv || rawCv === '') return;
-
-    const jId = getJobId(job);
-    if (jId && processedJobIds.has(jId)) return;
-    if (jId) processedJobIds.add(jId);
-
-    const js = String(job.status || '').toUpperCase();
-    const isConfirmed = js.includes('เสร็จ') || js.includes('สำเร็จ') || js.includes('SUCCESS') || js.includes('คืน') || js.includes('กลับ');
-
-    const { allAggregated } = aggregateJobItems(job.items || [], job.status);
-
-    allAggregated.forEach(agg => {
-      const enriched = enrichItem(agg.it);
-      const itemKey = generateKey(enriched);
-      const category = agg.category;
-      const qty = agg.totalQty;
-
-      if (!map[itemKey]) {
-        const { main } = formatItemName(enriched);
-        map[itemKey] = { 
-          name: main, 
-          type: enriched.ประเภท || '',
-          detail: enriched.รายละเอียด || enriched.details || '',
-          size: enriched.ขนาด || '',
-          condition: enriched.สภาพ || 'ปกติ',
-          qty: 0 
-        };
-      }
-
-      if (category === 'SEND' && isConfirmed) {
-        map[itemKey].qty += qty;
-        map[itemKey].lastStatus = agg.action_type || job.status || 'ส่งเสร็จแล้ว';
-        map[itemKey].lastDate = job.completion_date || job.deliveryDate || job.updated_at || job.date;
-      } else if (category === 'RETURN' && isConfirmed) {
-        map[itemKey].qty -= qty;
-      }
-    });
-  });
-
-  // 2️⃣ Process Historical Transactions
-  (transactions || []).forEach(t => {
-    const rawCv = String(t.CV || t.cv || t.CustomerID || '').trim();
-    if (normalizeCv(rawCv) !== normalizedTargetCv || rawCv === '') return;
-
-    const tId = getJobId(t);
-    if (tId && processedJobIds.has(tId)) return;
-
-    const enriched = enrichItem(t);
+  const addToMap = (enriched: any, qty: number, status?: string, date?: string) => {
     const itemKey = generateKey(enriched);
-    const status = String(t.สถานะ || t.Status || '').toUpperCase();
-    if (status.includes(HISTORY_STATUSES[0].toUpperCase())) return; // Simplified cancel check
-
-    const category = classifyLogisticsItem(status);
-    const qty = Number(t.จำนวน || t.qty || t.Quantity || 0);
-
     if (!map[itemKey]) {
-      const { main } = formatItemName(enriched);
+      const { main, meta } = formatItemName(enriched);
       map[itemKey] = { 
         name: main,
+        meta: meta,
         type: enriched.ประเภท || '',
         detail: enriched.รายละเอียด || enriched.details || '',
         size: enriched.ขนาด || '',
@@ -209,20 +160,83 @@ export const calculateCustomerInventory = (
         qty: 0 
       };
     }
+    map[itemKey].qty += qty;
+    if (status) map[itemKey].lastStatus = status;
+    if (date) map[itemKey].lastDate = date;
+  };
 
-    const isIncoming = status.includes('ส่ง') || category === 'SEND';
-    const isOutgoing = status.includes('คืน') || category === 'RETURN';
-
-    if (isIncoming) {
-      map[itemKey].qty += qty;
-      map[itemKey].lastStatus = t.สถานะ ||'ส่งเสร็จแล้ว';
-      map[itemKey].lastDate = t["วัน-เวลา"] || t.Date || t.deliveryDate;
-    } else if (isOutgoing) {
+  const subtractFromMap = (enriched: any, qty: number) => {
+    const itemKey = generateKey(enriched);
+    if (map[itemKey]) {
       map[itemKey].qty -= qty;
+    } else {
+      const { main } = formatItemName(enriched);
+      const match = Object.values(map).find((v: any) => v.name === main && v.size === enriched.ขนาด);
+      if (match) (match as any).qty -= qty;
+    }
+  };
+
+  // 1️⃣ Historical Transactions
+  const sortedTransactions = [...(transactions || [])].sort((a, b) => {
+    const da = new Date(a["วัน-เวลา"] || a.Date || 0).getTime();
+    const db = new Date(b["วัน-เวลา"] || b.Date || 0).getTime();
+    return da - db;
+  });
+
+  sortedTransactions.forEach(t => {
+    if (!checkCvMatch(t.CV || t.cv || t.CustomerID)) return;
+    const tId = getJobId(t);
+    if (tId && processedJobIds.has(tId)) return;
+    if (tId) processedJobIds.add(tId);
+
+    const status = String(t.สถานะ || t.Status || '').toUpperCase();
+    if (status.includes('ยกเลิก')) return;
+
+    const enriched = enrichItem(t);
+    const category = classifyLogisticsItem(status);
+    const qty = Number(t.จำนวน || t.qty || t.Quantity || 0);
+
+    if (status.includes('ส่ง') || category === 'SEND') {
+      addToMap(enriched, qty, t.สถานะ, t["วัน-เวลา"]);
+    } else if (status.includes('คืน') || category === 'RETURN') {
+      subtractFromMap(enriched, qty);
     }
   });
 
-  return Object.values(map).filter(it => it.qty > 0);
+  // 2️⃣ Logistics Jobs
+  const sortedJobs = [...(logisticsJobs || [])].sort((a, b) => {
+    const da = new Date(a.completion_date || a.deliveryDate || a.updated_at || 0).getTime();
+    const db = new Date(b.completion_date || b.deliveryDate || b.updated_at || 0).getTime();
+    return da - db;
+  });
+
+  sortedJobs.forEach(job => {
+    if (!checkCvMatch(job.cv || job.CV || job.CustomerID)) return;
+    const jId = getJobId(job);
+    if (jId && processedJobIds.has(jId)) return;
+    if (jId) processedJobIds.add(jId);
+
+    const js = String(job.status || '').toUpperCase();
+    const isConfirmed = [
+      'เสร็จ', 'สำเร็จ', 'SUCCESS', 'CLOSED', 'ตรวจสอบแล้ว',
+      'คืน', 'กลับ', 'RETURN', 'TRANSIT_BACK', 'ARRIVED_OFFICE',
+      'ARRIVED', 'DELIVERED', 'ส่งมอบ', 'เรียบร้อย'
+    ].some(k => js.includes(k.toUpperCase()));
+
+    if (!isConfirmed) return;
+
+    const { allAggregated } = aggregateJobItems(job.items || [], job.status);
+    allAggregated.forEach(agg => {
+      const enriched = enrichItem(agg.it);
+      if (agg.category === 'SEND') {
+        addToMap(enriched, agg.totalQty, job.status, job.completion_date || job.deliveryDate);
+      } else if (agg.category === 'RETURN') {
+        subtractFromMap(enriched, agg.totalQty);
+      }
+    });
+  });
+
+  return Object.values(map).filter(it => it.qty !== 0);
 };
 
 /**
@@ -373,6 +387,9 @@ export const aggregateJobItems = (rawItems: any[] = [], jobStatus?: string) => {
  * Checks if a job is in the 'Waiting' tab.
  */
 export const checkIsWaitingJob = (job: any) => {
+  const jId = String(job.jobId || job.job_id || job.txnNo || job.txn_no || '').toUpperCase();
+  if (jId.startsWith('TXN-')) return false;
+
   const s = String(job.status || '').toUpperCase();
   const hasHandedOverItems = job.items?.some((it: any) =>
     String(it.action_type || '').includes('รอตรวจ') ||
@@ -387,6 +404,9 @@ export const checkIsWaitingJob = (job: any) => {
  * Checks if a job is in the 'Active' tab.
  */
 export const checkIsActiveJob = (job: any) => {
+  const jId = String(job.jobId || job.job_id || job.txnNo || job.txn_no || '').toUpperCase();
+  if (jId.startsWith('TXN-')) return false;
+
   if (checkIsWaitingJob(job)) return false;
 
   const s = String(job.status || '').toUpperCase();
@@ -413,6 +433,9 @@ export const checkIsActiveJob = (job: any) => {
  * Checks if a job is in the 'History' tab.
  */
 export const checkIsHistoryJob = (job: any) => {
+  const jId = String(job.jobId || job.job_id || job.txnNo || job.txn_no || '').toUpperCase();
+  if (jId.startsWith('TXN-')) return false;
+
   const s = String(job.status || '').toUpperCase();
   const hasHandedOver = job.items?.some((it: any) =>
     String(it.action_type || it.status || "").toUpperCase().includes('รอตรวจ') ||

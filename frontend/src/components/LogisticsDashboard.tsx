@@ -256,6 +256,9 @@ const LogisticsDashboard: React.FC<LogisticsDashboardProps> = ({
       <FulfillmentForm
         job={selectedJobForFulfillment}
         items={items}
+        customers={customers}
+        transactions={transactions}
+        jobs={jobs}
         operatorName={operatorName}
         onSuccess={() => {
           setSelectedJobForFulfillment(null);

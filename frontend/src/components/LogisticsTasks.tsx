@@ -62,6 +62,9 @@ const LogisticsTasks: React.FC<LogisticsTasksProps> = ({
 
     const relevantStatuses = ['PENDING', 'ACCEPTED', 'IN_TRANSIT', 'รอส่ง', 'รอรับคืน', 'กำลังไปส่ง', 'ถึงหน้าร้านแล้ว', 'รับงานแล้ว', 'ยืนยันรับงาน', 'ดำเนินการ'];
     return jobs.filter(j => {
+      const jId = String(j.jobId || j.job_id || j.txnNo || j.txn_no || '').toUpperCase();
+      if (jId.startsWith('TXN-')) return false;
+
       const isRelevant = relevantStatuses.some(s => j.status?.toUpperCase().includes(s.toUpperCase()) || j.status === s);
       const search = searchTerm.toLowerCase();
       return isRelevant && (

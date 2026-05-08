@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Truck, CheckCircle2, History, Camera, MapPin, ChevronLeft, Save, AlertCircle, Barcode } from 'lucide-react';
 import { processBatchTransaction } from '../api';
 import { getCoordinates } from '../utils/locationUtils';
-import { formatItemName } from '../utils/logisticsUtils';
+import { formatItemName, calculateCustomerInventory } from '../utils/logisticsUtils';
 import { reconcileTransactions } from '../utils/logisticsCore';
 
 interface FulfillmentFormProps {
@@ -11,9 +11,21 @@ interface FulfillmentFormProps {
   onSuccess: () => void;
   onBack: () => void;
   items?: any[];
+  customers: any[];
+  transactions: any[];
+  jobs: any[];
 }
 
-const FulfillmentForm: React.FC<FulfillmentFormProps> = ({ job, operatorName, onSuccess, onBack, items = [] }) => {
+const FulfillmentForm: React.FC<FulfillmentFormProps> = ({ 
+  job, 
+  operatorName, 
+  onSuccess, 
+  onBack, 
+  items = [],
+  customers = [],
+  transactions = [],
+  jobs: allJobs = []
+}) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [photos, setPhotos] = useState<File[]>([]);
