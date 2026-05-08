@@ -362,8 +362,8 @@ function App() {
               </main>
 
               {/* 📱 Mobile Bottom Navigation removed to prevent overlap with action buttons */}
-            </div>
 
+            </div>
             {/* Desktop View */}
             <div className="hidden md:block">
               <DesktopLayout
